@@ -2,6 +2,7 @@ import socketserver
 import pandas
 import random
 import string
+from socketserver import *
 user_info = {}
 problem_info = set()
 conf_path = "conf"
@@ -31,4 +32,14 @@ def gen_pwd():
         string.ascii_letters + string.digits, 8))
 
 
-logging_server = socketserver.ForkingTCPServer()
+class requst_(socketserver.BaseRequestHandler):
+    def handle(self):
+        data = self.request.recv(1024)
+        print(data)
+        data = "fuck u"
+        data = data.encode()
+        self.request.send(data)
+
+
+server_ = socketserver.ThreadingTCPServer(('127.0.0.1', 8080), requst_)
+server_.serve_forever()

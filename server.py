@@ -7,6 +7,7 @@ import string
 import socketserver
 from tkinter import *
 from tkinter.filedialog import *
+from tkinter import ttk
 
 
 def init_():
@@ -28,12 +29,13 @@ def init_():
     Entry(master=tk, textvariable=port).grid(row=0, column=4)
     Button(master=tk, text="确认", command=tk.destroy).grid(row=0, column=5)
     tk.mainloop()
-    work_dir, work_port = path.get(), port.get()
+    work_dir, work_port = path.get(), int(port.get())
     return work_dir, work_port
 
 
 user_info = {}
 problem_info = set()
+addr_info = {}
 conf_path = ""
 
 
@@ -49,14 +51,17 @@ def load_conf():
         return
     global user_info
     global problem_info
+    global addr_info
     conf = eval(f.read())
-    user_info, problem_info = conf["user_info"], conf["problem_info"]
+    user_info, problem_info, addr_info = conf["user_info"], conf["problem_info"], conf["addr_info"]
     f.close()
 
 
 def save_conf():
     f = open(conf_path, "w")
-    f.write(str({"user_info": user_info, "problem_info": problem_info}))
+    f.write(str({"user_info": user_info,
+                 "problem_info": problem_info,
+                 "addr_info": addr_info}))
     f.close()
 
 
@@ -80,17 +85,43 @@ def add_user_from_xls_(xls_path):
     save_conf()
 
 
+class logging_requst(socketserver.BaseRequestHandler):
+    def handle(self):
+        info = self.request.recv(1024)
+        info = info.decode().split()
+        if info[0] in user_info and info[1] == user_info[info[0]][1]:
+            addr_info[info[0]] = self.request.client.address
+            self.request.sendall("succeed".encode())
+            save_conf()
+        self.request.sendall("error".encode())
+
+
 def prepare_(work_dir, work_port):
     load_conf()
-    logging_server = socketserver.ForkingTCPServer()
+    tk = tkinter.Tk()
+    tk.geometry('600x600')
+    tk.resizable(False, False)
+    status = LabelFrame(master=tk, text="状态",)
 
+    tv = ttk.Treeview(master=tk, show='headings',
+                      columns=("id", "name", "logged"))
+    tv.column("id", width=20, anchor="center")
+    tv.column("name", width=20, anchor="center")
+    tv.column("logged", width=5, anchor="center")
+    tv.heading("id", text="学号")
+    tv.heading("name", text="姓名")
+    tv.heading("logged", text="登陆状态")
 
-def run_():
-    return
+    tv.pack(anchor="nw", pady=10, padx=10)
+
+    logging_server = socketserver.ThreadingTCPServer(
+        ('127.0.0.1', work_port), logging_requst)
+    return logging_server, tk
 
 
 if __name__ == "__main__":
     work_dir, work_port = init_()
     conf_path = work_dir+"\\conf"
-    #sserver = prepare_(work_dir, work_port)
-    #run_(sserver, work_dir, work_port)
+    save_conf()
+    logging_server, tk = prepare_(work_dir, work_port)
+    tk.mainloop()
