@@ -85,6 +85,10 @@ def add_user_from_xls_(xls_path):
     save_conf()
 
 
+def update_user_info_(tv):
+    tv.insert("", "end", values=["1", "2", "3"])
+
+
 class logging_requst(socketserver.BaseRequestHandler):
     def handle(self):
         info = self.request.recv(1024)
@@ -99,21 +103,29 @@ class logging_requst(socketserver.BaseRequestHandler):
 def prepare_(work_dir, work_port):
     load_conf()
     tk = tkinter.Tk()
-    tk.geometry('600x600')
+    tk.geometry('600x400')
     tk.resizable(False, False)
-    status = LabelFrame(master=tk, text="状态",)
-
-    tv = ttk.Treeview(master=tk, show='headings',
+    status = LabelFrame(master=tk, text="状态", height=300, width=600)
+    status.pack_propagate(0)
+    status.pack(side="top", padx=10, pady=10)
+    tv = ttk.Treeview(master=status, show='headings',
                       columns=("id", "name", "logged"))
-    tv.column("id", width=20, anchor="center")
-    tv.column("name", width=20, anchor="center")
-    tv.column("logged", width=5, anchor="center")
+    tv.column("id", width=80, anchor="center")
+    tv.column("name", width=80, anchor="center")
+    tv.column("logged", width=40, anchor="center")
     tv.heading("id", text="学号")
     tv.heading("name", text="姓名")
     tv.heading("logged", text="登陆状态")
+    tv.pack(padx=5, pady=5, side="top")
+    vsb = ttk.Scrollbar(
+        master=status, orient=tkinter.VERTICAL, command=tv.yview)
+    tv.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="both")
 
-    tv.pack(anchor="nw", pady=10, padx=10)
-
+    update_user_info_(tv)
+    add_button = ttk.Button(master=status, text="添加学生",
+                            command=lambda: update_user_info_(tv))
+    add_button.pack(anchor="sw")
     logging_server = socketserver.ThreadingTCPServer(
         ('127.0.0.1', work_port), logging_requst)
     return logging_server, tk
