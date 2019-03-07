@@ -124,9 +124,17 @@ def init_gui_():
     rt = wx.Frame(None, title="filetrans", size=(
         640, 480), style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
     rt.Show(True)
-    lc = wx.ListCtrl(parent=rt, pos=(10, 20), size=(450, 400))
+    lc = wx.ListCtrl(parent=rt, pos=(10, 20), size=(450, 400),
+                     style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+    lc.InsertColumn(0, "学号", format=wx.LIST_FORMAT_LEFT, width=100)
+    lc.InsertColumn(1, "姓名", format=wx.LIST_FORMAT_LEFT, width=100)
+    lc.InsertColumn(2, "ip登记状态", format=wx.LIST_FORMAT_LEFT, width=80)
+    lc.InsertColumn(3, "题目接收状态", format=wx.LIST_FORMAT_LEFT, width=100)
     lc.Show(True)
-    app.MainLoop()
+    bt1 = wx.Button(parent=rt, pos=(480, 20), size=(120, 40), label="学生管理")
+    bt1.Show(True)
+    bt2 = wx.Button(parent=rt, pos=(480, 80), size=(120, 40), label="题目管理")
+    bt2.Show(True)
     return app
 
 
