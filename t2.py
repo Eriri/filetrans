@@ -1,9 +1,9 @@
 import sqlite3
 import chardet
 import xlrd
+import time
 
-with xlrd.open_workbook("user_info.xls") as xls_data:
-    print(xls_data)
+print(str(time.time()))
 '''
 connect = sqlite3.connect("conf.db")
 cursor = connect.cursor()

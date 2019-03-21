@@ -8,6 +8,8 @@ import socket
 import socketserver
 import wx
 from wx import *
+from ObjectListView import ObjectListView, ColumnDefn
+import time
 
 work_dir = sys.path[0]
 db_name = work_dir+'/'+'conf.db'
@@ -79,11 +81,11 @@ def init_db_():
         db_conn = sqlite3.connect(db_name)
         db_cursor = db_conn.cursor()
         db_cursor.execute(
-            'create table user_info(id varchar(20) primary key,name varchar(10),pwd varchar(8),ip varchar(20))')
+            'create table user_info(id text primary key,name text,pwd text)')
         db_cursor.execute(
-            'create table problem_info(id varchar(20) primary key)')
+            'create table problem_info(id text primary key)')
         db_cursor.execute(
-            'create table ip_info(ip vachar(20) primary key,id varchar(20)')
+            'create table ip_info(ip text primary key,id text,time real)')
         db_conn.commit()
         db_cursor.close()
         db_conn.close()
@@ -105,14 +107,25 @@ class ss_req(socketserver.BaseRequestHandler):
             self.request.sendall("wrong password".encode())
         else:
             self.request.sendall("succeed".encode())
-            db_cursor.execute("update user_info set ip='" +
-                              self.request.client.address +
-                              "' where id='"+info[0]+"'")
             db_cursor.execute("insert or ignore into ip_info (ip) values ('" +
                               self.request.client.address+"')")
-            db_cursor.execute("update ip_info set id='" +
-                              info[0]+"' where ip='" +
+            db_cursor.execute("update ip_info set id='" + info[0] +
+                              "time='" + str(time.time()) +
+                              "' where ip='" +
                               self.request.client.address+"')")
+        db_conn.commit()
+        db_cursor.close()
+        db_conn.close()
+
+
+class hb_req(socketserver.BaseRequestHandler):
+    def handle(self):
+        info = self.request.recv(1024)
+        info = info.decode()
+        db_conn = sqlite3.connect(db_name)
+        db_cursor = db_conn.cursor()
+        db_cursor.execute("update ip_info set time='" + str(time.time()) +
+                          "' where ip="+self.request.client.address+"')")
         db_conn.commit()
         db_cursor.close()
         db_conn.close()
@@ -123,6 +136,11 @@ def init_ss_():
     return ss
 
 
+def init_hb_():
+    hb = socketserver.ThreadingTCPServer(('127.0.0.1', 9090), hb_req)
+    return hb
+
+
 def collect_work_():
     s = socket.socket()
     db_conn = sqlite3.connect(db_name)
@@ -130,6 +148,8 @@ def collect_work_():
     items = db_cursor.execute("select * from ip_info").fetchall()
     probs = db_cursor.execute("select * from problem_info").fetchall()
     for item in items:
+        if time.time() - item[3] >= 30.0:
+            continue
         if os.path.exists(item[1]) == False:
             os.mkdir(item[1])
         try:
@@ -156,23 +176,27 @@ def init_gui_():
     rt = wx.Frame(None, title="filetrans", size=(
         640, 480), style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
     rt.Show(True)
-    lc = wx.ListCtrl(parent=rt, pos=(10, 20), size=(450, 400),
-                     style=wx.LC_REPORT | wx.BORDER_SUNKEN)
-    lc.InsertColumn(0, "学号", format=wx.LIST_FORMAT_LEFT, width=100)
-    lc.InsertColumn(1, "姓名", format=wx.LIST_FORMAT_LEFT, width=100)
-    lc.InsertColumn(2, "ip登记状态", format=wx.LIST_FORMAT_LEFT, width=80)
-    lc.InsertColumn(3, "题目接收状态", format=wx.LIST_FORMAT_LEFT, width=100)
-    lc.Show(True)
+    global olv
+    olv = ObjectListView(parent=rt, pos=(10, 20), size=(450, 400),
+                         style=wx.LC_REPORT | wx.BORDER_SUNKEN, sortable=True)
+    olv.SetColumns([
+        ColumnDefn("学号", "left", 120, "id"),
+        ColumnDefn("姓名", "left", 120, "name"),
+        ColumnDefn("在线状态", "left", 120, "ip"),
+        ColumnDefn("接收情况", "left", 120, "status")
+    ])
+    olv.Show(True)
     bt1 = wx.Button(parent=rt, pos=(480, 20), size=(120, 40), label="学生管理")
     bt1.Show(True)
     bt2 = wx.Button(parent=rt, pos=(480, 80), size=(120, 40), label="题目管理")
     bt2.Show(True)
+    bt3 = wx.Button(parent=rt, pos=(480, 140), size=(120, 40), label="接收作业")
     return app
 
 
 if __name__ == "__main__":
     init_db_()
     ss = init_ss_()
+    hb = init_hb_()
     app = init_gui_()
-    # ss.serve_forever()
     app.MainLoop()
