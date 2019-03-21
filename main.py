@@ -19,26 +19,27 @@ def gen_pwd_():
 
 
 def add_user_info_from_xls_(xls_path):
-    xls_data = xlrd.open_workbook(xls_path)
-    xls_sheet = xls_data.sheets()[0]
-    xls_attr = xls_sheet.row_values(0)
-    try:
-        id_c = [i for i, x in enumerate(xls_attr) if x == "学号"][0]
-        name_c = [i for i, x in enumerate(xls_attr) if x == "姓名"][0]
-    except IndexError:
-        print("make sure intended column existed")
-        return
     db_conn = sqlite3.connect(db_name)
     db_cursor = db_conn.cursor()
-    for i in range(1, xls_sheet.nrows):
-        id_ = xls_sheet.row_values(i)[id_c]
-        name_ = xls_sheet.row_values(i)[name_c]
-        db_cursor.execute(
-            "insert or ignore into user_info (id,name,pwd) values ('" +
-            id_+"','"+name_+"','"+gen_pwd_()+"')")
+    with xlrd.open_workbook(xls_path) as xls_data:
+        xls_sheet = xls_data.sheets()[0]
+        xls_attr = xls_sheet.row_values(0)
+        try:
+            id_c = [i for i, x in enumerate(xls_attr) if x == "学号"][0]
+            name_c = [i for i, x in enumerate(xls_attr) if x == "姓名"][0]
+        except IndexError:
+            print("make sure intended column existed")
+            return "failed"
+        for i in range(1, xls_sheet.nrows):
+            id_ = xls_sheet.row_values(i)[id_c]
+            name_ = xls_sheet.row_values(i)[name_c]
+            db_cursor.execute(
+                "insert or ignore into user_info (id,name,pwd) values ('" +
+                id_+"','"+name_+"','"+gen_pwd_()+"')")
     db_conn.commit()
     db_cursor.close()
     db_conn.close()
+    return "succeed"
 
 
 def add_user_info_(id_, name_):
@@ -81,6 +82,8 @@ def init_db_():
             'create table user_info(id varchar(20) primary key,name varchar(10),pwd varchar(8),ip varchar(20))')
         db_cursor.execute(
             'create table problem_info(id varchar(20) primary key)')
+        db_cursor.execute(
+            'create table ip_info(ip vachar(20) primary key,id varchar(20)')
         db_conn.commit()
         db_cursor.close()
         db_conn.close()
@@ -102,9 +105,14 @@ class ss_req(socketserver.BaseRequestHandler):
             self.request.sendall("wrong password".encode())
         else:
             self.request.sendall("succeed".encode())
-            db_cursor.execute("update user_info set ip ='" +
+            db_cursor.execute("update user_info set ip='" +
                               self.request.client.address +
                               "' where id='"+info[0]+"'")
+            db_cursor.execute("insert or ignore into ip_info (ip) values ('" +
+                              self.request.client.address+"')")
+            db_cursor.execute("update ip_info set id='" +
+                              info[0]+"' where ip='" +
+                              self.request.client.address+"')")
         db_conn.commit()
         db_cursor.close()
         db_conn.close()
@@ -116,6 +124,30 @@ def init_ss_():
 
 
 def collect_work_():
+    s = socket.socket()
+    db_conn = sqlite3.connect(db_name)
+    db_cursor = db_conn.cursor()
+    items = db_cursor.execute("select * from ip_info").fetchall()
+    probs = db_cursor.execute("select * from problem_info").fetchall()
+    for item in items:
+        if os.path.exists(item[1]) == False:
+            os.mkdir(item[1])
+        try:
+            s.connect((item[0], 8080))
+            for prob in probs:
+                s.send(prob.encode())
+                info = s.recv(1024)
+                info = info.decode()
+                if info == "not exists":
+                    continue
+                f = open(item[1]+"/"+prob, "w")
+                f.write(info)
+                f.close()
+            s.send("over".encode())
+        finally:
+            s.close()
+    db_cursor.close()
+    db_conn.close()
     return
 
 
