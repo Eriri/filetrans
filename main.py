@@ -118,27 +118,9 @@ class ss_req(socketserver.BaseRequestHandler):
         db_conn.close()
 
 
-class hb_req(socketserver.BaseRequestHandler):
-    def handle(self):
-        info = self.request.recv(1024)
-        info = info.decode()
-        db_conn = sqlite3.connect(db_name)
-        db_cursor = db_conn.cursor()
-        db_cursor.execute("update ip_info set time='" + str(time.time()) +
-                          "' where ip="+self.request.client.address+"')")
-        db_conn.commit()
-        db_cursor.close()
-        db_conn.close()
-
-
 def init_ss_():
     ss = socketserver.ThreadingTCPServer(('127.0.0.1', 8080), ss_req)
     return ss
-
-
-def init_hb_():
-    hb = socketserver.ThreadingTCPServer(('127.0.0.1', 9090), hb_req)
-    return hb
 
 
 def collect_work_():
@@ -191,12 +173,12 @@ def init_gui_():
     bt2 = wx.Button(parent=rt, pos=(480, 80), size=(120, 40), label="题目管理")
     bt2.Show(True)
     bt3 = wx.Button(parent=rt, pos=(480, 140), size=(120, 40), label="接收作业")
+    bt3.Show(True)
     return app
 
 
 if __name__ == "__main__":
     init_db_()
     ss = init_ss_()
-    hb = init_hb_()
     app = init_gui_()
     app.MainLoop()
