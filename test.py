@@ -1,6 +1,11 @@
 import sys
 import sql
 import serverbase
+import os
 
-sql.init_db(sys.path[0])
-sql.
+try:
+    os.mkdir("21")
+except:
+    print("?")
+finally:
+    pass

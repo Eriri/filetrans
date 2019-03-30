@@ -1,9 +1,11 @@
 import socketserver
 import socket
-from sql import open_db, close_db
+from sql import *
 import time
 import os
 import threading
+import CD
+import itertools
 
 
 def run_ss(address, port, db_name):
@@ -11,48 +13,47 @@ def run_ss(address, port, db_name):
         def handle(self):
             info = self.request.recv(1024).decode().split()
             db_con, db_cur = open_db(db_name)
-            item = db_cur.execute("select * from user_info where id ='" +
-                                  info[0]+"'").fetchall()
+            item = select_all_where(db_cur, "user_info", [
+                                    "*"], ["id"], [info[0]])
             if len(item) == 0:
-                self.request.sendall("No such user".encode())
+                self.request.sendall(CD._LOG_INFO_NO_USER_.encode())
             elif item[0][2] != info[1]:
-                print(item[0][2]+" "+info[1])
-                self.request.sendall("Wrong password".encode())
+                self.request.sendall(CD._LOG_INFO_WRONG_PWD_.encode())
             else:
-                self.request.sendall("Succeed".encode())
-                db_cur.execute("insert or replace into ip_info (ip,id,time) values ('" +
-                               self.client_address[0]+"','" +
-                               info[0]+"','" +
-                               str(time.time())+"')")
+                self.request.sendall(CD._LOG_INFO_SUCCEED_.encode())
+                insert_or_replace(db_cur, "ip_info", ["ip", "id", "time"],
+                                  [self.client_address[0], info[0], time.time()])
             close_db(db_con, db_cur)
-    ser = socketserver.ThreadingTCPServer((address, port), req)
-    threading.Thread(target=ser.serve_forever).start()
-    return ser
+    ss = socketserver.ThreadingTCPServer((address, port), req)
+    threading.Thread(target=ss.serve_forever).start()
+    return ss
 
 
 def run_cs(address, port, path):
     class req(socketserver.BaseRequestHandler):
         def handle(self):
             info = self.request.recv(1024).decode().split()
-            data = {}
-            lang = [".c", ".cpp"]
-            for i in info:
-                for s in lang:
-                    if os.path.isfile(os.path.join(path, i+s)):
-                        data[i +
-                             s] = ''.join(open(os.path.join(path, i+s)).readlines())
+            if info[0] == CD._CLIENT_ONLINE_CHECK_:
+                self.request.sendall(CD._CLIENT_ONLINE_NOW_.encode())
+                return
+            data, lang = {}, CD._LANGUAGE_CONFIG_
+            candidate = list(itertools.chain.from_iterable(
+                [[x+y for y in lang] for x in info]))
+            for fn in candidate:
+                if os.path.isfile(os.path.join(path, fn)):
+                    data[fn] = ''.join(
+                        open(os.path.join(path, fn), "r").readlines())
             self.request.sendall(str(data).encode())
-    ser = socketserver.ThreadingTCPServer((address, port), req)
-    threading.Thread(target=ser.serve_forever).start()
-    return ser
+    cs = socketserver.ThreadingTCPServer((address, port), req)
+    threading.Thread(target=cs.serve_forever).start()
+    return cs
 
 
 def log_in(address, port, user, password):
     ss = socket.socket()
     ss.settimeout(0.5)
     ss.connect((address, port))
-    info = user + " " + password
-    ss.sendall(info.encode())
+    ss.sendall((user + " " + password).encode())
     info = ss.recv(1024).decode()
     ss.close()
     return info
@@ -61,25 +62,45 @@ def log_in(address, port, user, password):
 def collect_work(address, port, probs):
     ss = socket.socket()
     ss.settimeout(0.5)
-    ss.connect((address, port))
-    ss.sendall(probs.encode())
-    info = eval(ss.recv(1024).decode())
-    ss.close()
+    try:
+        ss.connect((address, port))
+        ss.sendall(probs.encode())
+        info = eval(ss.recv(1024).decode())
+    except:
+        info = CD._COLLECT_WORK_ERROR_
+    finally:
+        ss.close()
     return info
+
+
+def online_check(items, port):
+    ss = socket.socket()
+    ss.settimeout(0.5)
+    online_items = []
+    for item in items:
+        if time.time() - item[2] <= 43200:
+            try:
+                ss.connect((item[0], port))
+                ss.sendall(CD._CLIENT_ONLINE_CHECK_.encode())
+                if ss.recv(1024).decode() == CD._CLIENT_ONLINE_NOW_:
+                    online_items.append(item)
+            finally:
+                ss.close()
+    return online_items
 
 
 def collect_works(db_name, path, port):
     db_con, db_cur = open_db(db_name)
-    probs = db_cur.execute("select id from problem_info").fetchall()
-    probs = [x[0] for x in probs]
-    items = db_cur.execute("select * from ip_info").fetchall()
+    probs = [x[0] for x in select_all(db_cur, "problem_info", ["id"])]
+    items = online_check(select_all(db_cur, "ip_info", ["*"]), port)
     for item in items:
-        if time.time() - item[2] <= 86400:
-            info = collect_work(item[0], port, " ".join(probs))
-            if os.path.isdir(os.path.join(path, item[1])) == False:
-                os.mkdir(os.path.join(path, item[1]))
-            for k, v in info.items():
-                f = open(os.path.join(path, item[1], k), "w")
-                f.write(v)
-                f.close()
+        info = collect_work(item[0], port, " ".join(probs))
+        if info == CD._COLLECT_WORK_ERROR_:
+            continue
+        if os.path.isdir(os.path.join(path, item[1])) == False:
+            os.mkdir(os.path.join(path, item[1]))
+        for k, v in info.items():
+            f = open(os.path.join(path, item[1], k), "w")
+            f.write(v)
+            f.close()
     close_db(db_con, db_cur)
