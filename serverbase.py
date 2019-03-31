@@ -6,6 +6,7 @@ import os
 import threading
 import CD
 import itertools
+import multiprocessing
 
 
 def run_ss(address, port, db_name):
@@ -59,6 +60,31 @@ def log_in(address, port, user, password):
     return info
 
 
+def online_user(item, port):
+    ss = socket.socket()
+    ss.settimeout(0.5)
+    try:
+        ss.connect((item[0], port))
+        ss.sendall(CD._CLIENT_ONLINE_CHECK_.encode())
+        if ss.recv(1024).decode() != CD._CLIENT_ONLINE_NOW_:
+            item = None
+    except:
+        item = None
+    finally:
+        ss.close()
+    return item
+
+
+def online_users(items, port):
+    online_items = []
+    pool = multiprocessing.Pool()
+    for item in items:
+        pool.apply_async(online_user, (item,),
+                         callback=lambda item: online_items.append(item))
+    pool.close(), pool.join()
+    return [x for x in online_items if x != None]
+
+
 def collect_work(address, port, probs):
     ss = socket.socket()
     ss.settimeout(0.5)
@@ -73,26 +99,10 @@ def collect_work(address, port, probs):
     return info
 
 
-def online_check(items, port):
-    ss = socket.socket()
-    ss.settimeout(0.5)
-    online_items = []
-    for item in items:
-        if time.time() - item[2] <= 43200:
-            try:
-                ss.connect((item[0], port))
-                ss.sendall(CD._CLIENT_ONLINE_CHECK_.encode())
-                if ss.recv(1024).decode() == CD._CLIENT_ONLINE_NOW_:
-                    online_items.append(item)
-            finally:
-                ss.close()
-    return online_items
-
-
 def collect_works(db_name, path, port):
     db_con, db_cur = open_db(db_name)
     probs = [x[0] for x in select_all(db_cur, "problem_info", ["id"])]
-    items = online_check(select_all(db_cur, "ip_info", ["*"]), port)
+    items = online_users(select_all(db_cur, "ip_info", ["*"]), port)
     for item in items:
         info = collect_work(item[0], port, " ".join(probs))
         if info == CD._COLLECT_WORK_ERROR_:
