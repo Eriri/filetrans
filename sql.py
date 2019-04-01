@@ -49,7 +49,7 @@ def init_db(proj_path, db_name="conf.db"):
     if os.path.isfile(db_name) == False:
         db_con, db_cur = open_db(db_name)
         db_cur.execute(
-            'create table user_info(id text primary key,name text,pwd text)')
+            'create table user_info(id text primary key,name text,pwd text,ctime text)')
         db_cur.execute(
             'create table ip_info(ip text primary key,id text,time real)')
         db_cur.execute(
@@ -65,9 +65,10 @@ def import_problem(Id, time, memory, db_name):
     close_db(db_con, db_cur)
 
 
-def delete_problem(Id, db_name):
+def delete_problem(Ids, db_name):
     db_con, db_cur = open_db(db_name)
-    delete_where(db_cur, "problem_info", "id", Id)
+    for Id in Ids:
+        delete_where(db_cur, "problem_info", "id", Id)
     close_db(db_con, db_cur)
 
 
@@ -78,9 +79,10 @@ def import_user(Id, name, db_name):
     close_db(db_con, db_cur)
 
 
-def delete_user(Id, db_name):
+def delete_user(Ids, db_name):
     db_con, db_cur = open_db(db_name)
-    delete_where(db_cur, "user_info", "id", Id)
+    for Id in Ids:
+        delete_where(db_cur, "user_info", "id", Id)
     close_db(db_con, db_cur)
 
 

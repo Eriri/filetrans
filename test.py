@@ -6,22 +6,29 @@ import threading
 import time
 import multiprocessing
 import threading
+import wx
 
 
-def a():
-    print("a")
+class MainFrame(wx.Frame):
+    def __init__(self):
+        wx.Frame.__init__(self, parent=None, id=-1,
+                          title="filetrans", size=wx.Size(480, 320))
+        self.Bind(wx.EVT_CLOSE, self.c)
+
+    def c(self, event):
+        print("?")
+        self.Destroy()
 
 
-def b():
-    print("b")
+class MainApp(wx.App):
+    def OnInit(self):
+        self.frame = MainFrame()
+        self.SetTopWindow(self.frame)
+        self.frame.Show()
+        return True
 
 
 if __name__ == "__main__":
-    '''p = multiprocessing.Pool()
-    data = []
-    for i in range(10):
-        p.apply_async(func=a, args=(i,), callback=lambda x: data.append(x))
-    p.close()
-    p.join()
-    print(data)'''
-    b(), a()
+ #   app = MainApp()
+ #   app.MainLoop()
+    print("|"+" "*10 + "|" + " "*5+"|")

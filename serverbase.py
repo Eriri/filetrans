@@ -24,6 +24,8 @@ def run_ss(address, port, db_name):
                 self.request.sendall(CD._LOG_INFO_SUCCEED_.encode())
                 insert_or_replace(db_cur, "ip_info", ["ip", "id", "time"],
                                   [self.client_address[0], info[0], time.time()])
+                db_cur.execute("update user_info set ctime = " +
+                               str(time.ctime())+" where id = "+info[0])
             close_db(db_con, db_cur)
     ss = socketserver.ThreadingTCPServer((address, port), req)
     threading.Thread(target=ss.serve_forever).start()
@@ -53,10 +55,14 @@ def run_cs(address, port, path):
 def log_in(address, port, user, password):
     ss = socket.socket()
     ss.settimeout(0.5)
-    ss.connect((address, port))
-    ss.sendall((user + " " + password).encode())
-    info = ss.recv(1024).decode()
-    ss.close()
+    try:
+        ss.connect((address, port))
+        ss.sendall((user + " " + password).encode())
+        info = ss.recv(1024).decode()
+    except:
+        info = CD._LOG_INFO_SERVER_ERROR_
+    finally:
+        ss.close()
     return info
 
 
@@ -76,41 +82,45 @@ def online_user(item, port):
 
 
 def online_users(items, port):
-    online_items = []
-    pool = multiprocessing.Pool()
+    online_items, pool = [], multiprocessing.Pool()
     for item in items:
         pool.apply_async(online_user, (item,),
-                         callback=lambda item: online_items.append(item))
+                         callback=lambda x: online_items.append(x))
     pool.close(), pool.join()
     return [x for x in online_items if x != None]
 
 
-def collect_work(address, port, probs):
+def collect_work(item, port, probs):
     ss = socket.socket()
     ss.settimeout(0.5)
     try:
-        ss.connect((address, port))
+        ss.connect((item[0], port))
         ss.sendall(probs.encode())
         info = eval(ss.recv(1024).decode())
     except:
         info = CD._COLLECT_WORK_ERROR_
     finally:
         ss.close()
-    return info
+    return (item[1], info)
 
 
 def collect_works(db_name, path, port):
     db_con, db_cur = open_db(db_name)
-    probs = [x[0] for x in select_all(db_cur, "problem_info", ["id"])]
+    probs = " ".join([x[0]
+                      for x in select_all(db_cur, "problem_info", ["id"])])
     items = online_users(select_all(db_cur, "ip_info", ["*"]), port)
+    works, pool = [], multiprocessing.Pool()
+
     for item in items:
-        info = collect_work(item[0], port, " ".join(probs))
-        if info == CD._COLLECT_WORK_ERROR_:
-            continue
-        if os.path.isdir(os.path.join(path, item[1])) == False:
-            os.mkdir(os.path.join(path, item[1]))
-        for k, v in info.items():
-            f = open(os.path.join(path, item[1], k), "w")
+        pool.apply_async(collect_work, (item, port, probs,),
+                         callback=lambda x: works.append(x))
+    pool.close(), pool.join()
+    works = [x for x in works if x[1] != CD._COLLECT_WORK_ERROR_]
+    for user, work in works:
+        if os.path.isdir(os.path.join(path, user)) == False:
+            os.mkdir(os.path.join(path, user))
+        for k, v in work.items():
+            f = open(os.path.join(path, user, k), "w")
             f.write(v)
             f.close()
     close_db(db_con, db_cur)
