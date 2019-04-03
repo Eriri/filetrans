@@ -6,6 +6,7 @@ import threading
 import time
 import multiprocessing
 import threading
+import socketserver
 import wx
 
 
@@ -29,6 +30,4 @@ class MainApp(wx.App):
 
 
 if __name__ == "__main__":
- #   app = MainApp()
- #   app.MainLoop()
-    print("|"+" "*10 + "|" + " "*5+"|")
+    pass

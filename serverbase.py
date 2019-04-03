@@ -4,7 +4,7 @@ from sql import *
 import time
 import os
 import threading
-import CD
+from CD import *
 import itertools
 import multiprocessing
 
@@ -17,11 +17,11 @@ def run_ss(address, port, db_name):
             item = select_all_where(db_cur, "user_info", [
                                     "*"], ["id"], [info[0]])
             if len(item) == 0:
-                self.request.sendall(CD._LOG_INFO_NO_USER_.encode())
+                self.request.sendall(CD.LOG_INFO_NO_USER.encode())
             elif item[0][2] != info[1]:
-                self.request.sendall(CD._LOG_INFO_WRONG_PWD_.encode())
+                self.request.sendall(LOG_INFO_WRONG_PWD.encode())
             else:
-                self.request.sendall(CD._LOG_INFO_SUCCEED_.encode())
+                self.request.sendall(LOG_INFO_SUCCEED.encode())
                 insert_or_replace(db_cur, "ip_info", ["ip", "id", "time"],
                                   [self.client_address[0], info[0], time.time()])
                 db_cur.execute("update user_info set ctime = " +
@@ -36,10 +36,10 @@ def run_cs(address, port, path):
     class req(socketserver.BaseRequestHandler):
         def handle(self):
             info = self.request.recv(1024).decode().split()
-            if info[0] == CD._CLIENT_ONLINE_CHECK_:
-                self.request.sendall(CD._CLIENT_ONLINE_NOW_.encode())
+            if info[0] == CLIENT_ONLINE_CHECK:
+                self.request.sendall(CLIENT_ONLINE_NOW.encode())
                 return
-            data, lang = {}, CD._LANGUAGE_CONFIG_
+            data, lang = {}, LANGUAGE_CONFIG
             candidate = list(itertools.chain.from_iterable(
                 [[x+y for y in lang] for x in info]))
             for fn in candidate:
@@ -60,7 +60,7 @@ def log_in(address, port, user, password):
         ss.sendall((user + " " + password).encode())
         info = ss.recv(1024).decode()
     except:
-        info = CD._LOG_INFO_SERVER_ERROR_
+        info = LOG_INFO_SERVER_ERROR
     finally:
         ss.close()
     return info
@@ -71,8 +71,8 @@ def online_user(item, port):
     ss.settimeout(0.5)
     try:
         ss.connect((item[0], port))
-        ss.sendall(CD._CLIENT_ONLINE_CHECK_.encode())
-        if ss.recv(1024).decode() != CD._CLIENT_ONLINE_NOW_:
+        ss.sendall(CLIENT_ONLINE_CHECK.encode())
+        if ss.recv(1024).decode() != CLIENT_ONLINE_NOW:
             item = None
     except:
         item = None
@@ -87,7 +87,7 @@ def online_users(items, port):
         pool.apply_async(online_user, (item,),
                          callback=lambda x: online_items.append(x))
     pool.close(), pool.join()
-    return [x for x in online_items if x != None]
+    return [x for x in online_items if type(x) is not None]
 
 
 def collect_work(item, port, probs):
@@ -98,10 +98,10 @@ def collect_work(item, port, probs):
         ss.sendall(probs.encode())
         info = eval(ss.recv(1024).decode())
     except:
-        info = CD._COLLECT_WORK_ERROR_
+        info = COLLECT_WORK_ERROR
     finally:
         ss.close()
-    return (item[1], info)
+    return item[1], info
 
 
 def collect_works(db_name, path, port):
@@ -115,9 +115,9 @@ def collect_works(db_name, path, port):
         pool.apply_async(collect_work, (item, port, probs,),
                          callback=lambda x: works.append(x))
     pool.close(), pool.join()
-    works = [x for x in works if x[1] != CD._COLLECT_WORK_ERROR_]
+    works = [x for x in works if x[1] != COLLECT_WORK_ERROR]
     for user, work in works:
-        if os.path.isdir(os.path.join(path, user)) == False:
+        if not os.path.isdir(os.path.join(path, user)):
             os.mkdir(os.path.join(path, user))
         for k, v in work.items():
             f = open(os.path.join(path, user, k), "w")

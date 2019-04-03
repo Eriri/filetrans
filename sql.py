@@ -3,7 +3,7 @@ import os
 import xlrd
 import xlwt
 from uuid import uuid4
-import CD
+from CD import *
 
 
 def open_db(db_name):
@@ -28,7 +28,7 @@ def select_all_where(db_cur, table, attr_list, area_list, val_list):
     attr_list = ",".join(attr_list)
     condition = " and ".join(
         [a + "=" + "'"+str(v)+"'" for a, v in zip(area_list, val_list)])
-    return db_cur.execute("select "+attr_list+" where "+condition).fetchall()
+    return db_cur.execute("select "+attr_list+" from "+table+" where "+condition).fetchall()
 
 
 def insert_or_replace(db_cur, table, attr_list, val_list):
@@ -46,7 +46,7 @@ def delete_where(db_cur, table, area_id, val_id):
 
 def init_db(proj_path, db_name="conf.db"):
     db_name = os.path.join(proj_path, db_name)
-    if os.path.isfile(db_name) == False:
+    if not os.path.isfile(db_name):
         db_con, db_cur = open_db(db_name)
         db_cur.execute(
             'create table user_info(id text primary key,name text,pwd text,ctime text)')
@@ -72,21 +72,21 @@ def delete_problem(Ids, db_name):
     close_db(db_con, db_cur)
 
 
-def import_user(Id, name, db_name):
+def import_user(db_name, Id, name, pwd=str(uuid4())[:8]):
     db_con, db_cur = open_db(db_name)
     insert_or_replace(db_cur, "user_info",
-                      ["id", "name", "pwd"], [Id, name, str(uuid4())[:8]])
+                      ["id", "name", "pwd"], [Id, name, pwd])
     close_db(db_con, db_cur)
 
 
-def delete_user(Ids, db_name):
+def delete_user(db_name, Ids):
     db_con, db_cur = open_db(db_name)
     for Id in Ids:
         delete_where(db_cur, "user_info", "id", Id)
     close_db(db_con, db_cur)
 
 
-def import_user_from_xls(xls_path, db_name):
+def import_user_from_xls(db_name, xls_path):
     db_con, db_cur = open_db(db_name)
     with xlrd.open_workbook(xls_path) as xls_data:
         xls_sheet = xls_data.sheets()[0]
@@ -95,25 +95,25 @@ def import_user_from_xls(xls_path, db_name):
             i_c = [i for i, x in enumerate(xls_attr) if x == "学号"][0]
             n_c = [i for i, x in enumerate(xls_attr) if x == "姓名"][0]
         except IndexError:
-            return CD._IMPORT_FROM_XLS_ERROR_
+            return IMPORT_FROM_XLS_ERROR
         try:
             p_c = [i for i, x in enumerate(xls_attr) if x == "密码"][0]
-            for i in range(1, xls_sheet.nrows):
-                insert_or_replace(db_cur, "user_info", ["id", "name", "pwd"],
-                                  [xls_sheet.row_values(i)[i_c],
-                                   xls_sheet.row_values(i)[n_c],
-                                   xls_sheet.row_values(i)[p_c]])
         except IndexError:
-            for i in range(1, xls_sheet.nrows):
-                insert_or_replace(db_cur, "user_info", ["id", "name", "pwd"],
-                                  [xls_sheet.row_values(i)[i_c],
-                                   xls_sheet.row_values(i)[n_c],
-                                   str(uuid4())[:8]])
+            p_c = -1
+        for i in range(1, xls_sheet.nrows):
+            if p_c != -1 and xls_sheet.row_values(i)[p_c] != "":
+                pwd = str(xls_sheet.row_values(i)[p_c])
+            else:
+                pwd = str(uuid4())[:8]
+            insert_or_replace(db_cur, "user_info", ["id", "name", "pwd"],
+                              [xls_sheet.row_values(i)[i_c],
+                               xls_sheet.row_values(i)[n_c],
+                               pwd])
     close_db(db_con, db_cur)
-    return CD._IMPORT_FROM_XLS_SUCCED_
+    return IMPORT_FROM_XLS_SUCCEED
 
 
-def export_user_to_xls(xls_path, db_name):
+def export_user_to_xls(db_name, xls_path):
     db_con, db_cur = open_db(db_name)
     f = xlwt.Workbook()
     sh = f.add_sheet('user_sheet')
@@ -124,5 +124,10 @@ def export_user_to_xls(xls_path, db_name):
     for i, item in enumerate(items):
         for j in range(3):
             sh.write(i+1, j, item[j])
-    f.save(xls_path)
     close_db(db_con, db_cur)
+    try:
+        f.save(xls_path)
+        return EXPORT_TO_XLS_SUCCEED
+    except:
+        return EXPORT_TO_XLS_ERROR
+
