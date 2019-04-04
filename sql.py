@@ -40,7 +40,7 @@ def insert_or_replace(db_cur, table, attr_list, val_list):
 
 
 def delete_where(db_cur, table, area_id, val_id):
-    condition = area_id+"="+str(val_id)
+    condition = area_id+"="+"'"+str(val_id)+"'"
     db_cur.execute("delete from "+table+" where "+condition)
 
 
@@ -54,6 +54,8 @@ def init_db(proj_path, db_name="conf.db"):
             'create table ip_info(ip text primary key,id text,time real)')
         db_cur.execute(
             'create table problem_info(id text primary key,time real,memory int)')
+        db_cur.execute(
+            'create table test_info(a int primary key autoincrement,belong text,id text,point int)')
         close_db(db_con, db_cur)
     return db_name
 
@@ -69,6 +71,7 @@ def delete_problem(Ids, db_name):
     db_con, db_cur = open_db(db_name)
     for Id in Ids:
         delete_where(db_cur, "problem_info", "id", Id)
+        delete_where(db_cur, "test_info","belong",Id)
     close_db(db_con, db_cur)
 
 

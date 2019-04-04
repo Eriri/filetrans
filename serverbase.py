@@ -17,7 +17,7 @@ def run_ss(address, port, db_name):
             item = select_all_where(db_cur, "user_info", [
                                     "*"], ["id"], [info[0]])
             if len(item) == 0:
-                self.request.sendall(CD.LOG_INFO_NO_USER.encode())
+                self.request.sendall(LOG_INFO_NO_USER.encode())
             elif item[0][2] != info[1]:
                 self.request.sendall(LOG_INFO_WRONG_PWD.encode())
             else:
@@ -28,7 +28,7 @@ def run_ss(address, port, db_name):
                                str(time.ctime())+" where id = "+info[0])
             close_db(db_con, db_cur)
     ss = socketserver.ThreadingTCPServer((address, port), req)
-    threading.Thread(target=ss.serve_forever).start()
+    threading.Thread(target=ss.serve_forever,daemon=True).start()
     return ss
 
 
@@ -48,7 +48,7 @@ def run_cs(address, port, path):
                         open(os.path.join(path, fn), "r").readlines())
             self.request.sendall(str(data).encode())
     cs = socketserver.ThreadingTCPServer((address, port), req)
-    threading.Thread(target=cs.serve_forever).start()
+    threading.Thread(target=cs.serve_forever,daemon=True).start()
     return cs
 
 
