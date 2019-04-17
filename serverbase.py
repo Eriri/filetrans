@@ -1,126 +1,116 @@
 import socketserver
 import socket
-from sql import *
 import time
 import os
 import threading
-from CD import *
 import itertools
 import multiprocessing
+import sqlite3
+from sqlbase import *
+from utilities import *
 
 
-def run_ss(address, port, db_name):
-    class req(socketserver.BaseRequestHandler):
+def Run_Server(address, port, database):
+    class request(socketserver.BaseRequestHandler):
         def handle(self):
-            info = self.request.recv(1024).decode().split()
-            db_con, db_cur = open_db(db_name)
-            item = select_all_where(db_cur, "user_info", [
-                                    "*"], ["id"], [info[0]])
-            if len(item) == 0:
-                self.request.sendall(LOG_INFO_NO_USER.encode())
-            elif item[0][2] != info[1]:
-                self.request.sendall(LOG_INFO_WRONG_PWD.encode())
-            else:
-                self.request.sendall(LOG_INFO_SUCCEED.encode())
-                insert_or_replace(db_cur, "ip_info", ["ip", "id", "time"],
-                                  [self.client_address[0], info[0], time.time()])
-                db_cur.execute("update user_info set ctime = " +
-                               str(time.ctime())+" where id = "+info[0])
-            close_db(db_con, db_cur)
-    ss = socketserver.ThreadingTCPServer((address, port), req)
-    threading.Thread(target=ss.serve_forever,daemon=True).start()
-    return ss
+            packet = eval(self.request.recv(1024).decode())
+            connection, data = sqlite3.connect(database), LOG_INFO_FAILED
+            try:
+                assert Select(connection, "USER", "PASSWORD", ["ID"], [packet["ID"]])[0] == packet["PASSWORD"]
+                Insert(connection, "IP", ["IP", "ID", "TIME"], [self.client_address[0], packet["ID"], time.time()])
+                connection.execute("update USER set TIME = "+str(time.time())+" where ID = "+packet["ID"])
+                data = LOG_INFO_SUCCEED
+            finally:
+                connection.commit(), connection.close(), self.request.sendall(data.encode())
+    server = socketserver.ThreadingTCPServer((address, port), request)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
 
 
-def run_cs(address, port, path):
-    class req(socketserver.BaseRequestHandler):
+def Run_Client(address, port, path):
+    class request(socketserver.BaseRequestHandler):
         def handle(self):
-            info = self.request.recv(1024).decode().split()
-            if info[0] == CLIENT_ONLINE_CHECK:
+            packet = eval(self.request.recv(1024).decode())
+            if packet["TYPE"] == CLIENT_ONLINE_CHECK:
                 self.request.sendall(CLIENT_ONLINE_NOW.encode())
-                return
-            data, lang = {}, LANGUAGE_CONFIG
-            candidate = list(itertools.chain.from_iterable(
-                [[x+y for y in lang] for x in info]))
-            for fn in candidate:
-                if os.path.isfile(os.path.join(path, fn)):
-                    data[fn] = ''.join(
-                        open(os.path.join(path, fn), "r").readlines())
-            self.request.sendall(str(data).encode())
-    cs = socketserver.ThreadingTCPServer((address, port), req)
-    threading.Thread(target=cs.serve_forever,daemon=True).start()
-    return cs
+            if packet["TYPE"] == CLIENT_COLLECT_WORK:
+                data, candidate = {}, list(itertools.chain.from_iterable(
+                    [[ID + suffix for suffix in LANGUAGE_CONFIG] for ID in packet["PROBLEM"]]))
+                for filename in candidate:
+                    filepath = os.path.join(path, filename)
+                    if os.path.isfile(filepath):
+                        data[filename] = ''.join(open(filepath, "r").readlines())
+                self.request.sendall(str(data).encode())
+    client = socketserver.ThreadingTCPServer((address, port), request)
+    threading.Thread(target=client.serve_forever, daemon=True).start()
+    return client
 
 
-def log_in(address, port, user, password):
-    ss = socket.socket()
-    ss.settimeout(0.5)
+def Log_In(address, port, ID, PASSWORD):
+    s, data = socket.socket(), {"ID": ID, "PASSWORD": PASSWORD}
     try:
-        ss.connect((address, port))
-        ss.sendall((user + " " + password).encode())
-        info = ss.recv(1024).decode()
+        s.connect((address, port)), s.sendall(str(data).encode())
+        info = s.recv(1024).decode()
     except:
         info = LOG_INFO_SERVER_ERROR
-    finally:
-        ss.close()
+    s.close()
     return info
 
 
-def online_user(item, port):
-    ss = socket.socket()
-    ss.settimeout(0.5)
+def Online_Check(address, port, ID):
+    s, data = socket.socket(), {"TYPE": CLIENT_ONLINE_CHECK}
+    s.settimeout(0.5)
     try:
-        ss.connect((item[0], port))
-        ss.sendall(CLIENT_ONLINE_CHECK.encode())
-        if ss.recv(1024).decode() != CLIENT_ONLINE_NOW:
-            item = None
+        s.connect((address, port))
+        s.sendall(str(data).encode())
+        assert s.recv(1024).decode() == CLIENT_ONLINE_NOW
+        info = ID, address
     except:
-        item = None
-    finally:
-        ss.close()
-    return item
+        info = CLIENT_OFFLINE
+    s.close()
+    return info
 
 
-def online_users(items, port):
-    online_items, pool = [], multiprocessing.Pool()
-    for item in items:
-        pool.apply_async(online_user, (item,),
-                         callback=lambda x: online_items.append(x))
-    pool.close(), pool.join()
-    return [x for x in online_items if type(x) is not None]
+def Online_User(database, port):
+    connection, pool, user = sqlite3.connect(database), multiprocessing.Pool(), []
+    for address, ID in Select(connection, "IP", ["IP", "ID"]):
+        pool.apply_async(Online_Check, (address, port, ID), callback=lambda x: user.append(x))
+    pool.close(), pool.join(), connection.close()
+    return [x for x in user if x != CLIENT_OFFLINE]
 
 
-def collect_work(item, port, probs):
-    ss = socket.socket()
-    ss.settimeout(0.5)
+def User_Work(address, port, ID, PROBLEM):
+    s, data = socket.socket(), {"TYPE": CLIENT_COLLECT_WORK, "PROBLEM": PROBLEM}
     try:
-        ss.connect((item[0], port))
-        ss.sendall(probs.encode())
-        info = eval(ss.recv(1024).decode())
+        s.connect((address, port))
+        s.sendall(str(data).encode())
+
+        info = ID, eval(s.recv(1024).decode())
+
     except:
         info = COLLECT_WORK_ERROR
-    finally:
-        ss.close()
-    return item[1], info
+    s.close()
+    return info
 
 
-def collect_works(db_name, path, port):
-    db_con, db_cur = open_db(db_name)
-    probs = " ".join([x[0]
-                      for x in select_all(db_cur, "problem_info", ["id"])])
-    items = online_users(select_all(db_cur, "ip_info", ["*"]), port)
-    works, pool = [], multiprocessing.Pool()
+def Collect_Work(database, path, port):
+    user, pool, connection = Online_User(database, port), multiprocessing.Pool(), sqlite3.connect(database)
+    PROBLEM, work = [x[0] for x in Select(connection, "PROBLEM", ["ID"])], []
+    for ID, address in user:
+        pool.apply_async(User_Work, (address, port, ID, PROBLEM), callback=lambda x: work.append(x))
+    connection.close(), pool.close(), pool.join()
+    work = [x for x in work if x != COLLECT_WORK_ERROR]
+    for ID, data in work:
+        if not os.path.isdir(os.path.join(path, ID)):
+            os.mkdir(os.path.join(path, DEFAULT_WORK_DIR, ID))
+        for k, v in data.items():
+            f = open(os.path.join(path, ID, k), "w")
+            f.write(v), f.close()
 
-    for item in items:
-        pool.apply_async(collect_work, (item, port, probs,),
-                         callback=lambda x: works.append(x))
-    pool.close(), pool.join()
-    works = [x for x in works if x[1] != COLLECT_WORK_ERROR]
-    for user, work in works:
-        if not os.path.isdir(os.path.join(path, user)):
-            os.mkdir(os.path.join(path, user))
-        for k, v in work.items():
-            f = open(os.path.join(path, user, k), "w")
-            f.write(v)
-            f.close()
-    close_db(db_con, db_cur)
+
+def User_File(address, port, file):
+    s, data = socket.socket(), {"TYPE": CLIENT_SEND_FILE}
+
+
+def Send_File(database, file, port):
+    pass

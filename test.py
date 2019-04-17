@@ -1,6 +1,4 @@
 import sys
-import sql
-import serverbase
 import os
 import threading
 import time
@@ -8,26 +6,20 @@ import multiprocessing
 import threading
 import socketserver
 import wx
-
-
-class MainFrame(wx.Frame):
-    def __init__(self):
-        wx.Frame.__init__(self, parent=None, id=-1,
-                          title="filetrans", size=wx.Size(480, 320))
-        self.Bind(wx.EVT_CLOSE, self.c)
-
-    def c(self, event):
-        print("?")
-        self.Destroy()
-
-
-class MainApp(wx.App):
-    def OnInit(self):
-        self.frame = MainFrame()
-        self.SetTopWindow(self.frame)
-        self.frame.Show()
-        return True
+import xlrd
 
 
 if __name__ == "__main__":
-    pass
+    item = [1,2]
+    try:
+        assert item[3] == 3
+        print("?")
+    except:
+        print("ku")
+
+    '''
+    sheet = xlrd.open_workbook("d:/filetrans/信息.xlsx").sheets()[0]
+    attributes = sheet.row_values(0)
+    print(attributes.index("ibui"))'''
+
+
