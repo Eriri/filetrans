@@ -6,7 +6,8 @@ import wx
 class MainFrame(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, None, -1, "C")
-        self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.HORIZONTAL)
+
+
 
 
 

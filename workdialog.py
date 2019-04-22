@@ -7,9 +7,15 @@ class WorkDialog(wx.Dialog):
         self.SetIcon(icon), self.SetMinSize((500, 300)), self.Center(wx.BOTH)
         self.icon, self.database = icon, database
 
-        self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.HORIZONTAL)
+        self.B, self.PR, self.BR = wx.BoxSizer(wx.HORIZONTAL), wx.Panel(self), wx.BoxSizer(wx.VERTICAL)
 
-        self.SB = wx.StatusBar(self.P)
+        self.OLV = ObjectListView(parent=self,sortable=True,style=wx.LC_REPORT)
+        self.OLV.SetColumns([
+            ColumnDefn("学号","left",100,"ID"),
+            ColumnDefn("IP","left",100,"IP")])
+
+    def update(self,event=None):
+
 
 
 

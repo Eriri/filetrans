@@ -12,6 +12,11 @@ def Select(connection, table, attributes, areas=None, values=None):
     conditions = "" if areas is None else " where "+" and ".join([str(a) + "='" + str(v) + "'" for a, v in zip(areas, values)])
     return connection.execute("select "+attributes+" from "+table+conditions).fetchall()
 
+def SelectOne(connection, table, attributes, areas=None, values=None):
+    attributes = ",".join(attributes)
+    conditions = "" if areas is None else " where "+" and ".join([str(a) + "='" + str(v) + "'" for a, v in zip(areas, values)])
+    return connection.execute("select "+attributes+" from "+table+conditions).fetchone()
+
 
 def Insert(connection, table, areas, values):
     areas, values = ",".join(areas), ",".join(["'"+str(v)+"'" for v in values])
