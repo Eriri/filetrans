@@ -9,88 +9,97 @@ import sqlite3
 import struct
 from sqlbase import *
 from utilities import *
+from _winapi import
 
-
-def Run_Server(address, server_port, client_port, database):
+def run_server(app):
     class Handler(socketserver.BaseRequestHandler):
         def handle(self):
-            type_len = struct.unpack("Q",self.request.recv(8))[0]
-            type_data = self.request.recv(type_len).decode()
-            if type_data == CLIENT_VERITY:
-                pass
-            if type_data == CLIENT_LOG_IN:
-                packet = eval(self.request.recv(1024).decode())
-                connection, data = sqlite3.connect(database), LOG_INFO_FAILED
-                try:
-                    assert SelectOne(connection, "USER", ["NAME"], ["ID"], [packet["ID"]])[0] == packet["NAME"]
-                    ip = SelectOne(connection,"IP",["IP"],["ID"],[packet["ID"]])
-                    if ip is not None and ip != self.client_address[0]:
-                        threading.Thread(target=Log_Out,args=(ip,client_port,)).start()
-                    Insert(connection, "IP", ["IP", "ID", "NAME", "TIME"], [self.client_address[0], packet["ID"], packet["NAME"], time.time()])
-                    connection.execute("update USER set TIME = "+str(time.time())+" where ID = "+packet["ID"])
-                    data = LOG_INFO_SUCCEED
-                finally:
-                    connection.commit(), connection.close(), self.request.sendall(data.encode())
-    server = socketserver.ThreadingTCPServer((address, server_port), Handler)
+            TYPE = self.request.recv(struct.unpack("Q",self.request.recv(8))[0]).decode()
+            packet, connection, IDs = eval(self.request.recv(1024).decode()), sqlite3.connect(app.database), []
+            NAME = SelectOne(connection, "USER", ["NAME"], ["ID"], packet["ID"])
+            if TYPE == CLIENT_SEARCH_SERVER:
+                self.request.sendall(app.server_address.encode())
+            elif TYPE == CLIENT_LOG_IN:
+                if NAME is None or NAME[0] != packet["NAME"]:
+                    self.request.sendall(LOG_INFO_FAILED.encode())
+                else:
+                    IP = SelectOne(connection, "USER", ["IP"], ["ID"], [packet["ID"]])[0]
+                    if IP is not None and IP != self.client_address[0]:
+                        threading.Thread(target=kick_out, args=(IP, app.client_port,)).start()
+                    ID = SelectOne(connection, "USER", ["ID"], ["IP"], [self.client_address[0]])
+                    if ID is not None and ID[0] != packet["ID"]:
+                        Update(connection, "USER",["IP", "TIME"],["NULL", "NULL"],["ID"],[ID[0]]), IDs.append(ID[0])
+                    Update(connection, "USER", ["IP", "TIME"], [self.client_address[0], time.time()], ["ID"], [packet["ID"]])
+                    IDs.append(packet["ID"]), self.request.sendall(LOG_INFO_SUCCEED.encode())
+            elif TYPE == CLIENT_LOG_OUT:
+                if NAME is not None and NAME[0] == packet["NAME"]:
+                    Update(connection,["IP","TIME"],["NULL", "NULL"],["ID"],[packet["ID"]]), IDs.append(packet["ID"])
+            elif TYPE == CLIENT_VERITY:
+                if NAME is None or NAME[0] != packet["NAME"] or SelectOne(connection, "USER", ["IP"], ["ID"], [packet["ID"]])[0] != self.client_address[0]:
+                    threading.Thread(target=kick_out, args=(self.client_address[0], app.client_port,)).start()
+            connection.commit(), connection.close(), app.update(IDs)
+
+    server = socketserver.ThreadingTCPServer((DEFAULT_LOCAL_ADDRESS, app.server_port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
 
-def run_client(app, address, port, path):
+def run_client(app):
     class Handler(socketserver.BaseRequestHandler):
         def handle(self):
-            info_len = struct.unpack("Q",self.request.recv(8))[0]
-            info_data = self.request.recv(info_len).decode()
-            if info_data == CLIENT_ONLINE_CHECK:
-                id_len = struct.unpack("Q",self.request.recv(8))[0]
-                id_data = self.request.recv(id_len).decode()
+            TYPE = self.request.recv(struct.unpack("Q", self.request.recv(8))[0]).decode()
+            if TYPE == CLIENT_SEARCH_SERVER:
+                self.request.sendall(app.server_address.encode())
+            elif TYPE == CLIENT_ONLINE_CHECK:
                 self.request.sendall(CLIENT_ONLINE_NOW.encode())
-            if info_data == CLIENT_OFFLINE:
-                print(str(app))
-            if info_data == CLIENT_COLLECT_WORK:
-                prob_conf_len = struct.unpack("Q",self.request.recv(8))[0]
-                prob_conf_data = eval(self.request.recv(prob_conf_len).decode())
-                lang_conf_len = struct.unpack("Q",self.request.recv(8))[0]
-                lang_conf_data = eval(self.request.recv(lang_conf_len).decode())
-                data, candidate = {}, list(itertools.chain.from_iterable(
-                    [[ID + suffix for suffix in lang_conf_data] for ID in prob_conf_data]))
+            elif TYPE == CLIENT_OFFLINE:
+                app.log_out()
+            elif TYPE == CLIENT_COLLECT_WORK:
+                prob = eval(self.request.recv(struct.unpack("Q", self.request.recv(8))[0]).decode())
+                lang = eval(self.request.recv(struct.unpack("Q", self.request.recv(8))[0]).decode())
+                candidate = list(itertools.chain.from_iterable([[ID + suffix for suffix in lang] for ID in prob]))
                 for filename in candidate:
-                    filepath = os.path.join(path, filename)
+                    filepath = os.path.join(app.path, filename)
                     if os.path.isfile(filepath):
-                        f = open(filepath,"rb").read()
-                        self.request.send(struct.pack("Q",len(f)))
+                        f = open(filepath, "rb").read()
+                        self.request.sendall(struct.pack("Q", len(f)))
                         self.request.sendall(f)
-            if info_data == CLIENT_RECV_FILE:
+                self.request.sendall(struct.pack("Q",len(SEND_FILE_OVER.encode())))
+                self.request.sendall(SEND_FILE_OVER.encode())
+            elif TYPE == CLIENT_RECV_FILE:
                 while True:
-                    filename_len = struct.unpack("Q",self.request.recv(8))[0]
-                    filename_data = self.request.recv(filename_len).decode()
-                    if filename_data == RECV_FILE_OVER:
+                    filename = self.request.recv(struct.unpack("Q", self.request.recv(8))[0]).decode()
+                    if filename == RECV_FILE_OVER:
                         break
-                    fs, rs = struct.unpack("Q",self.request.recv(8))[0], 0
-                    f = open(os.path.join(path,filename_data),"wb")
+                    fs, rs = struct.unpack("Q", self.request.recv(8))[0], 0
+                    f = open(os.path.join(app.path, filename), "wb")
                     while rs < fs:
                         data = self.request.recv(fs-rs)
                         rs += len(data)
                         f.write(data)
                     f.close()
-    client = socketserver.ThreadingTCPServer((address, port), Handler)
+
+    client = socketserver.ThreadingTCPServer((DEFAULT_LOCAL_ADDRESS, app.client_port), Handler)
     threading.Thread(target=client.serve_forever, daemon=True).start()
     return client
 
 
-def Log_Out(address, port):
+def kick_out(address, port):
     s = socket.socket()
-    s.connect((address,port))
-    s.send(struct.pack("Q",len(CLIENT_OFFLINE.encode())))
+    s.connect((address, port))
+    s.send(struct.pack("Q", len(CLIENT_OFFLINE.encode())))
     s.sendall(CLIENT_OFFLINE.encode())
     s.close()
+
+def search_server():
+    ip = socket.gethostbyname(socket.getfqdn())
 
 
 def Log_In(address, port, ID, NAME):
     s, data, info = socket.socket(), {"ID": ID, "NAME": NAME}, LOG_INFO_FAILED
     try:
         s.connect((address, port))
-        s.send(struct.pack("Q",len(str(data).encode())))
+        s.send(struct.pack("Q", len(str(data).encode())))
         s.sendall(str(data).encode())
         info = s.recv(1024).decode()
     except:
@@ -143,8 +152,6 @@ def Collect_Work(database, path, port):
 
 def User_File(address, port, file):
     s, data = socket.socket(), {"TYPE": CLIENT_SEND_FILE}
-
-
 
 
 def Send_File(database, file, port):

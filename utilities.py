@@ -4,6 +4,7 @@ import time
 LOG_INFO_SUCCEED = "SUCCEED"
 LOG_INFO_FAILED = "FAILED"
 LOG_INFO_SERVER_ERROR = "SERVER ERROR"
+CLIENT_SEARCH_SERVER = "SERVER"
 CLIENT_ONLINE_CHECK = "ONLINE CHECK"
 CLIENT_ONLINE_NOW = "ONLINE NOW"
 CLIENT_OFFLINE = "OFFLINE"
@@ -11,19 +12,20 @@ CLIENT_SEND_FILE = "SEND FILE"
 CLIENT_RECV_FILE = "RECV FILE"
 CLIENT_VERITY = "VERITY"
 CLIENT_LOG_IN = "LOG IN"
+CLIENT_LOG_OUT = "LOG OUT"
 CLIENT_COLLECT_WORK = "COLLECT WORK"
 RECV_FILE_OVER = "RECV FILE OVER"
+SEND_FILE_OVER = "SEND FILE OVER"
 COLLECT_WORK_ERROR = "COLLECT ERROR"
-LANGUAGE_CONFIG = [".c", ".cpp", ".java"]
+LANGUAGE_CONFIG = [".c", ".cpp", ".java", ".py", ".pas"]
 IMPORT_FROM_XLS_SUCCEED = "导入成功"
 IMPORT_FROM_XLS_ERROR = "导入错误"
 EXPORT_TO_XLS_SUCCEED = "导出成功"
 EXPORT_TO_XLS_ERROR = "导出错误"
 DEFAULT_DATABASE = "conf.db"
-DEFAULT_PROBLEM_DIR = "problem"
-DEFAULT_WORK_DIR = "work"
-TABLE_USER = 'create table USER(ID text primary key not null,NAME text not null,PASSWORD text not null,TIME real,POINT int)'
-TABLE_IP = 'create table IP(IP text primary key not null,ID text not null,NAME text not null,TIME real)'
+DEFAULT_PROBLEM_DIR = "problems"
+DEFAULT_WORK_DIR = "works"
+TABLE_USER = 'create table USER(ID text primary key not null,NAME text not null,IP text,TIME real,POINT int)'
 TABLE_PROBLEM = 'create table PROBLEM(ID text primary key not null,TIME real not null,MEMORY int not null)'
 TABLE_TEST = 'create table TEST(PATH text primary key,BELONG text not null,POINT int not null)'
 DEFAULT_LOCAL_ADDRESS = "127.0.0.1"
@@ -41,13 +43,19 @@ def Has(path, x):
 
 
 class Model(object):
-    def __init__(self, ID, NAME, PASSWORD, TIME, PROBLEM, POINT, path):
+    def __init__(self, ID, NAME, PROBLEM, POINT, IP, TIME, path):
         self.ID = ID
         self.NAME = NAME
-        self.PASSWORD = PASSWORD
-        self.TIME = time.ctime(TIME)
         self.PROBLEM = " ".join([x+["☒", "☑"][Has(path, x)] for x in PROBLEM])
         self.POINT = POINT
+        self.IP = IP
+        self.TIME = time.ctime(TIME)
+
+    def __eq__(self, other):
+        return hash(self.ID) == hash(other.ID)
+
+    def __hash__(self):
+        return hash(self.ID)
 
 
 class Test(object):
@@ -55,10 +63,3 @@ class Test(object):
         self.PATH = PATH
         self.BELONG = BELONG
         self.POINT = POINT
-
-
-class User(object):
-    def __init__(self, ID, IP):
-        self.ID = ID
-        self.IP = IP
-        self.FILES = ""

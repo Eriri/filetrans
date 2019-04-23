@@ -28,12 +28,17 @@ def Delete(connection, table, areas, values):
     connection.execute("delete from "+table+conditions)
 
 
+def Update(connection, table, areas, values, careas, cvalues):
+    attributes = ",".join([str(a) + "='"+str(v)+"'" for a, v in zip(areas, values)])
+    conditions = " where "+" and ".join([str(a)+"="+("NULL" if v=="NULL" else "'"+str(v)+"'") for a,v in zip(careas,cvalues)])
+    connection.execute("update "+table+" set "+attributes+conditions)
+
+
 def Initiate(path):
     database = os.path.join(path, DEFAULT_DATABASE)
     if not os.path.isfile(database):
         connection = sqlite3.connect(database)
         connection.execute(TABLE_USER)
-        connection.execute(TABLE_IP)
         connection.execute(TABLE_PROBLEM)
         connection.execute(TABLE_TEST)
         connection.commit(), connection.close()
