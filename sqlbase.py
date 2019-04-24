@@ -7,12 +7,13 @@ from uuid import uuid4
 from utilities import *
 
 
-def Select(connection, table, attributes, areas=None, values=None):
+def select(connection, table, attributes, areas=None, values=None):
     attributes = ",".join(attributes)
     conditions = "" if areas is None else " where "+" and ".join([str(a) + "='" + str(v) + "'" for a, v in zip(areas, values)])
     return connection.execute("select "+attributes+" from "+table+conditions).fetchall()
 
-def SelectOne(connection, table, attributes, areas=None, values=None):
+
+def select_one(connection, table, attributes, areas=None, values=None):
     attributes = ",".join(attributes)
     conditions = "" if areas is None else " where "+" and ".join([str(a) + "='" + str(v) + "'" for a, v in zip(areas, values)])
     return connection.execute("select "+attributes+" from "+table+conditions).fetchone()
@@ -28,7 +29,7 @@ def Delete(connection, table, areas, values):
     connection.execute("delete from "+table+conditions)
 
 
-def Update(connection, table, areas, values, careas, cvalues):
+def update(connection, table, areas, values, careas, cvalues):
     attributes = ",".join([str(a) + "='"+str(v)+"'" for a, v in zip(areas, values)])
     conditions = " where "+" and ".join([str(a)+"="+("NULL" if v=="NULL" else "'"+str(v)+"'") for a,v in zip(careas,cvalues)])
     connection.execute("update "+table+" set "+attributes+conditions)

@@ -150,6 +150,5 @@ class MainApp(wx.App):
 
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()
     app = MainApp()
     app.MainLoop()

@@ -1,125 +1,111 @@
-import socketserver
-import socket
-import time
-import os
-import threading
-import itertools
-import multiprocessing
-import sqlite3
-import struct
-from sqlbase import *
+from socket import socket,AF_INET,SOCK_DGRAM
+from socketserver import BaseRequestHandler,ThreadingTCPServer,ThreadingUDPServer
+from multiprocessing.dummy import Process
+from sqlite3 import connect
+from struct import pack,unpack
+from sqlbase import select_one,update
+from itertools import chain
 from utilities import *
-from _winapi import
 
-def run_server(app):
-    class Handler(socketserver.BaseRequestHandler):
+
+def run_server_tcp(app):
+    class Handler(BaseRequestHandler):
         def handle(self):
-            TYPE = self.request.recv(struct.unpack("Q",self.request.recv(8))[0]).decode()
-            packet, connection, IDs = eval(self.request.recv(1024).decode()), sqlite3.connect(app.database), []
-            NAME = SelectOne(connection, "USER", ["NAME"], ["ID"], packet["ID"])
-            if TYPE == CLIENT_SEARCH_SERVER:
-                self.request.sendall(app.server_address.encode())
-            elif TYPE == CLIENT_LOG_IN:
-                if NAME is None or NAME[0] != packet["NAME"]:
-                    self.request.sendall(LOG_INFO_FAILED.encode())
-                else:
-                    IP = SelectOne(connection, "USER", ["IP"], ["ID"], [packet["ID"]])[0]
-                    if IP is not None and IP != self.client_address[0]:
-                        threading.Thread(target=kick_out, args=(IP, app.client_port,)).start()
-                    ID = SelectOne(connection, "USER", ["ID"], ["IP"], [self.client_address[0]])
-                    if ID is not None and ID[0] != packet["ID"]:
-                        Update(connection, "USER",["IP", "TIME"],["NULL", "NULL"],["ID"],[ID[0]]), IDs.append(ID[0])
-                    Update(connection, "USER", ["IP", "TIME"], [self.client_address[0], time.time()], ["ID"], [packet["ID"]])
-                    IDs.append(packet["ID"]), self.request.sendall(LOG_INFO_SUCCEED.encode())
-            elif TYPE == CLIENT_LOG_OUT:
-                if NAME is not None and NAME[0] == packet["NAME"]:
-                    Update(connection,["IP","TIME"],["NULL", "NULL"],["ID"],[packet["ID"]]), IDs.append(packet["ID"])
-            elif TYPE == CLIENT_VERITY:
-                if NAME is None or NAME[0] != packet["NAME"] or SelectOne(connection, "USER", ["IP"], ["ID"], [packet["ID"]])[0] != self.client_address[0]:
-                    threading.Thread(target=kick_out, args=(self.client_address[0], app.client_port,)).start()
-            connection.commit(), connection.close(), app.update(IDs)
-
-    server = socketserver.ThreadingTCPServer((DEFAULT_LOCAL_ADDRESS, app.server_port), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+            packet = eval(self.request.recv(unpack("Q",self.request.recv(8))[0]).decode())
+            connection, nos = connect(app.database), []
+            name = select_one(connection, "user", ["name"], ["no"], packet["no"])
+            if name is None or name[0] != packet["name"]:
+                self.request.sendall(pack("Q", len(CLIENT_KICK_OUT.encode())))
+                self.request.sendall(CLIENT_KICK_OUT.encode())
+            else:
+                ip = select_one(connection, "user", ["ip"], ["no"], [packet["no"]])[0]
+                if ip is not None and ip != self.client_address[0]:
+                    Process(target=kick_out, args=(ip, app.client_port,)).start()
+                no = select_one(connection, "user", ["no"], ["ip"], [self.client_address[0]])
+                if no is not None and no[0] != packet["no"]:
+                    update(connection, "user",["ip"],["NULL"],["no"],[no[0]]), nos.append(no[0])
+                update(connection, "user", ["ip"], [self.client_address[0]], ["no"], [packet["no"]])
+                nos.append(packet["no"])
+                self.request.sendall(pack("Q",len(CLIENT_VERITY.encode())))
+                self.request.sendall(CLIENT_VERITY.encode())
+            connection.commit(), connection.close(), app.update(nos)
+    server = ThreadingTCPServer((DEFAULT_LOCAL_ADDRESS, app.server_port), Handler)
+    Process(target=server.serve_forever).start()
     return server
 
 
-def run_client(app):
-    class Handler(socketserver.BaseRequestHandler):
+def run_client_tcp(app):
+    class Handler(BaseRequestHandler):
         def handle(self):
-            TYPE = self.request.recv(struct.unpack("Q", self.request.recv(8))[0]).decode()
-            if TYPE == CLIENT_SEARCH_SERVER:
-                self.request.sendall(app.server_address.encode())
-            elif TYPE == CLIENT_ONLINE_CHECK:
-                self.request.sendall(CLIENT_ONLINE_NOW.encode())
-            elif TYPE == CLIENT_OFFLINE:
-                app.log_out()
-            elif TYPE == CLIENT_COLLECT_WORK:
-                prob = eval(self.request.recv(struct.unpack("Q", self.request.recv(8))[0]).decode())
-                lang = eval(self.request.recv(struct.unpack("Q", self.request.recv(8))[0]).decode())
-                candidate = list(itertools.chain.from_iterable([[ID + suffix for suffix in lang] for ID in prob]))
-                for filename in candidate:
-                    filepath = os.path.join(app.path, filename)
-                    if os.path.isfile(filepath):
-                        f = open(filepath, "rb").read()
-                        self.request.sendall(struct.pack("Q", len(f)))
+            info = self.request.recv(unpack("Q", self.request.recv(8))[0]).decode()
+            if info == CLIENT_KICK_OUT:
+                app.kick_out()
+            elif info == CLIENT_COLLECT_WORK:
+                prob = eval(self.request.recv(unpack("Q", self.request.recv(8))[0]).decode())
+                lang = eval(self.request.recv(unpack("Q", self.request.recv(8))[0]).decode())
+                candi = list(chain.from_iterable([[no + su for su in lang] for no in prob]))
+                for name in candi:
+                    path = os.path.join(app.path, name)
+                    if os.path.isfile(path):
+                        f = open(path, "rb").read()
+                        self.request.sendall(pack("Q", len(f)))
                         self.request.sendall(f)
-                self.request.sendall(struct.pack("Q",len(SEND_FILE_OVER.encode())))
+                self.request.sendall(pack("Q",len(SEND_FILE_OVER.encode())))
                 self.request.sendall(SEND_FILE_OVER.encode())
-            elif TYPE == CLIENT_RECV_FILE:
+            elif info == CLIENT_RECV_FILE:
                 while True:
-                    filename = self.request.recv(struct.unpack("Q", self.request.recv(8))[0]).decode()
-                    if filename == RECV_FILE_OVER:
+                    name = self.request.recv(unpack("Q", self.request.recv(8))[0]).decode()
+                    if name == RECV_FILE_OVER:
                         break
-                    fs, rs = struct.unpack("Q", self.request.recv(8))[0], 0
-                    f = open(os.path.join(app.path, filename), "wb")
+                    fs, rs = unpack("Q", self.request.recv(8))[0], 0
+                    f = open(os.path.join(app.path, name), "wb")
                     while rs < fs:
                         data = self.request.recv(fs-rs)
                         rs += len(data)
                         f.write(data)
                     f.close()
-
-    client = socketserver.ThreadingTCPServer((DEFAULT_LOCAL_ADDRESS, app.client_port), Handler)
-    threading.Thread(target=client.serve_forever, daemon=True).start()
+    client = ThreadingTCPServer((DEFAULT_LOCAL_ADDRESS, app.client_port), Handler)
+    Process(target=client.serve_forever).start()
     return client
 
 
+def run_client_udp(app):
+    class Handler(BaseRequestHandler):
+        def handle(self):
+            pass
+    client = ThreadingUDPServer((DEFAULT_LOCAL_ADDRESS, app.udp_port),Handler)
+
+
 def kick_out(address, port):
-    s = socket.socket()
-    s.connect((address, port))
-    s.send(struct.pack("Q", len(CLIENT_OFFLINE.encode())))
-    s.sendall(CLIENT_OFFLINE.encode())
-    s.close()
-
-def search_server():
-    ip = socket.gethostbyname(socket.getfqdn())
-
-
-def Log_In(address, port, ID, NAME):
-    s, data, info = socket.socket(), {"ID": ID, "NAME": NAME}, LOG_INFO_FAILED
+    s = socket()
     try:
         s.connect((address, port))
-        s.send(struct.pack("Q", len(str(data).encode())))
+        s.sendall(pack("Q", len(CLIENT_KICK_OUT.encode())))
+        s.sendall(CLIENT_KICK_OUT.encode())
+    finally:
+        s.close()
+
+
+def broadcast_host(port):
+    s = socket(AF_INET,SOCK_DGRAM)
+    s.setsockopt()
+
+
+def get_host(port):
+
+
+
+def verity_packet(address, port, no, name):
+    s, data = socket(), {"no": no, "name": name}
+    try:
+        s.connect((address, port))
+        s.sendall(pack("Q", len(str(data).encode())))
         s.sendall(str(data).encode())
-        info = s.recv(1024).decode()
+        info = s.recv(unpack("Q",s.recv(8))[0]).decode()
     except:
         info = LOG_INFO_SERVER_ERROR
     finally:
         s.close()
-        return info
-
-
-def Online_Check(address, port, ID):
-    s, data = socket.socket(), {"TYPE": CLIENT_ONLINE_CHECK}
-    s.settimeout(0.5)
-    try:
-        s.connect((address, port))
-        s.sendall(str(data).encode())
-        assert s.recv(1024).decode() == CLIENT_ONLINE_NOW
-        info = ID, address
-    except:
-        info = CLIENT_OFFLINE
-    s.close()
     return info
 
 
