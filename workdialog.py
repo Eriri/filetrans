@@ -40,14 +40,12 @@ class WorkDialog(wx.Dialog):
         connection.close()
         self.OLV.DeleteAllItems(), self.OLV.AddObjects(user)
 
-    def update(self, no, info, count):
+    def update(self, no, count, info, error=None):
         obj = self.OLV.GetObjectAt(self.OLV.GetIndexOf(SR(no)))
         if info == COLLECT_WORK_SUCCEED:
             obj.fresh_info("成功接收作业，共包括", count)
-        elif info == COLLECT_WORK_ERROR:
-            obj.fresh_info("接收发生错误，已接收", count)
         elif info == COLLECT_WORK_FAILED:
-            obj.fresh_info("接收作业失败", count)
+            obj.fresh_info("接收发生失败，已接收", count, error)
         self.OLV.RefreshObject(obj), self.G.SetValue(self.G.GetValue() + 1)
         if self.G.GetValue() == self.G.GetRange():
             self.C.Enable()

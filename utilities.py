@@ -1,6 +1,8 @@
 import os
 import time
 
+NO_ERROR = "NO ERROR"
+
 LOG_INFO_SUCCEED = "SUCCEED"
 LOG_INFO_FAILED = "FAILED"
 LOG_INFO_SERVER_ERROR = "SERVER ERROR"
@@ -10,24 +12,30 @@ CLIENT_ONLINE_NOW = "ONLINE NOW"
 CLIENT_KICK_OUT = "KICK OUT"
 CLIENT_SEND_FILE = "SEND FILE"
 CLIENT_RECV_FILE = "RECV FILE"
+
 CLIENT_VERITY = "VERITY"
+CLIENT_VERITY_SUCCEED = "VERITY SUCCEED"
+CLIENT_VERITY_FAILED = "VERITY FAILED"
+
 CLIENT_LOG_IN = "LOG IN"
 CLIENT_LOG_OUT = "LOG OUT"
 
 CLIENT_COLLECT_WORK = "COLLECT WORK"
 COLLECT_WORK_SUCCEED = "COLLECT WORK SUCCEED"
 COLLECT_WORK_FAILED = "COLLECT WORK FAILED"
-COLLECT_WORK_ERROR = "COLLECT ERROR"
 
 RECV_FILE_OVER = "RECV FILE OVER"
 RECV_FILE_SUCCEED = "RECV FILE SUCCEED"
 RECV_FILE_FAILED = "RECV FILE FAILED"
+RECV_SUCCEED = "RECV SUCCEED"
+RECV_FAILED = "RECV FAILED"
 
 SEND_FILE_NOW = "SEND FILE NOW"
 SEND_FILE_OVER = "SEND FILE OVER"
 SEND_FILE_SUCCEED = "SEND FILE SUCCEED"
-SEND_FILE_ERROR = "SEND FILE ERROR"
 SEND_FILE_FAILED = "SEND FILE FAILED"
+SEND_SUCCEED = "SEND SUCCEED"
+SEND_FAILED = "SEND FAILED"
 
 LANGUAGE_CONFIG = [".c", ".cpp", ".java", ".py", ".pas"]
 IMPORT_FROM_XLS_SUCCEED = "导入成功"
@@ -105,8 +113,10 @@ class SR(object):
     def __hash__(self):
         return hash(self.no)
 
-    def fresh_info(self, op, files):
-        self.info = op + str(files) if len(files) > 0 else op
+    def fresh_info(self, op, files, error=None):
+        self.info = op
+        self.info += str(files) if len(files) > 0 else ""
+        self.info += error if error is not None else ""
 
 
 class FP(object):

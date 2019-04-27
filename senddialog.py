@@ -47,14 +47,12 @@ class SendDialog(wx.Dialog):
         connection.close()
         self.U.DeleteAllItems(), self.U.AddObjects(user)
 
-    def update(self, no, info, count):
+    def update(self, no, count, info, error=None):
         obj = self.U.GetObjectAt(self.U.GetIndexOf(SR(no)))
         if info == SEND_FILE_SUCCEED:
-            obj.fresh_info("成功发送文件，共包括",count)
-        elif info == SEND_FILE_ERROR:
-            obj.fresh_info("发送发生错误，已发送",count)
+            obj.fresh_info("成功发送文件，共包括", count)
         elif info == SEND_FILE_FAILED:
-            obj.fresh_info("发送文件失败", count)
+            obj.fresh_info("发送发生失败，已发送", count, error)
         self.U.RefreshObject(obj), self.G.SetValue(self.G.GetValue() + 1)
         if self.G.GetValue() == self.G.GetRange():
             for b in self.Bt:

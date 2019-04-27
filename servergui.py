@@ -3,7 +3,6 @@ import wx
 from sqlite3 import connect
 from serverbase import *
 from sqlbase import *
-from wx import *
 from ObjectListView import ObjectListView, ColumnDefn
 from utilities import *
 from studentdialog import StudentDialog
@@ -24,8 +23,7 @@ class MainFrame(wx.Frame):
         self.status = PROJECT_STATUS_OFF
         self.SD = set()
 
-        self.icon = wx.Icon()
-        self.icon.CopyFromBitmap(wx.Bitmap("favicon.bmp", wx.BITMAP_TYPE_ANY))
+        self.icon = wx.Icon("favicon.ico", wx.BITMAP_TYPE_ICO)
         self.SetIcon(self.icon), self.Center(wx.BOTH), self.SetMinSize((600, 400))
 
         MB, ME, ELSE = wx.MenuBar(), wx.Menu(), wx.Menu()
@@ -34,9 +32,9 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.open, ME.Append(-1, "打开工作区..."))
         self.Bind(wx.EVT_MENU, self.close, ME.Append(-1, "关闭当前工作区"))
         self.Bind(wx.EVT_MENU, self.destroy, ME.Append(-1, "退出"))
-        self.Bind(wx.EVT_MENU, self.select_server_tcp_port, ELSE.Append(-1, "选择服务器端口"))
-        self.Bind(wx.EVT_MENU, self.select_client_tcp_port, ELSE.Append(-1, "选择客户端端口"))
-        self.Bind(wx.EVT_MENU, self.select_udp_port, ELSE.Append(-1, "选择广播端口"))
+        self.Bind(wx.EVT_MENU, self.select_server_tcp_port, ELSE.Append(-1, "选择服务器TCP端口"))
+        self.Bind(wx.EVT_MENU, self.select_client_tcp_port, ELSE.Append(-1, "选择客户端TCP端口"))
+        self.Bind(wx.EVT_MENU, self.select_udp_port, ELSE.Append(-1, "选择UDP广播端口"))
         self.Bind(wx.EVT_MENU, self.start_ftp_server, ELSE.Append(-1, "开启FTP服务器"))
         self.Bind(wx.EVT_MENU, self.close_ftp_server, ELSE.Append(-1, "关闭FTP服务器"))
         self.Bind(wx.EVT_MENU, self.select_extension, ELSE.Append(-1, "程序扩展名设置"))
@@ -156,7 +154,7 @@ class MainFrame(wx.Frame):
                 self.fresh_prob()
 
     def about(self, event):
-        msg = wx.MessageBox(message="这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符")
+        msg = wx.MessageBox("这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符")
 
     def init_all(self, event=None):
         connection = connect(self.database)
