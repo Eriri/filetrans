@@ -1,9 +1,13 @@
-from socket import socket,AF_INET,SOCK_DGRAM
-from socketserver import BaseRequestHandler,ThreadingTCPServer,ThreadingUDPServer
-from multiprocessing.dummy import Process
+from socket import socket, AF_INET, SOCK_DGRAM, IPPROTO_UDP, SOL_SOCKET, SO_BROADCAST, SO_REUSEADDR
+from socketserver import BaseRequestHandler, ThreadingTCPServer, ThreadingUDPServer
+from pyftpdlib.servers import FTPServer
+from pyftpdlib.authorizers import DummyAuthorizer
+from pyftpdlib.handlers import FTPHandler
+from apscheduler.schedulers.blocking import BlockingScheduler
+from multiprocessing.dummy import Process, Pool
 from sqlite3 import connect
-from struct import pack,unpack
-from sqlbase import select_one,update
+from struct import pack, unpack
+from sqlbase import select, select_one, update
 from itertools import chain
 from utilities import *
 
@@ -11,134 +15,204 @@ from utilities import *
 def run_server_tcp(app):
     class Handler(BaseRequestHandler):
         def handle(self):
-            packet = eval(self.request.recv(unpack("Q",self.request.recv(8))[0]).decode())
-            connection, nos = connect(app.database), []
+            packet, connection, nos = quick_recv(self.request), connect(app.database), []
             name = select_one(connection, "user", ["name"], ["no"], packet["no"])
             if name is None or name[0] != packet["name"]:
-                self.request.sendall(pack("Q", len(CLIENT_KICK_OUT.encode())))
-                self.request.sendall(CLIENT_KICK_OUT.encode())
+                quick_send(self.request, [CLIENT_KICK_OUT])
             else:
                 ip = select_one(connection, "user", ["ip"], ["no"], [packet["no"]])[0]
                 if ip is not None and ip != self.client_address[0]:
                     Process(target=kick_out, args=(ip, app.client_port,)).start()
                 no = select_one(connection, "user", ["no"], ["ip"], [self.client_address[0]])
                 if no is not None and no[0] != packet["no"]:
-                    update(connection, "user",["ip"],["NULL"],["no"],[no[0]]), nos.append(no[0])
+                    update(connection, "user", ["ip"], ["NULL"], ["no"], [no[0]]), nos.append(no[0])
                 update(connection, "user", ["ip"], [self.client_address[0]], ["no"], [packet["no"]])
-                nos.append(packet["no"])
-                self.request.sendall(pack("Q",len(CLIENT_VERITY.encode())))
-                self.request.sendall(CLIENT_VERITY.encode())
+                nos.append(packet["no"]), quick_send(self.request, [CLIENT_VERITY])
             connection.commit(), connection.close(), app.update(nos)
-    server = ThreadingTCPServer((DEFAULT_LOCAL_ADDRESS, app.server_port), Handler)
-    Process(target=server.serve_forever).start()
-    return server
+
+    try:
+        server = ThreadingTCPServer(('', app.server_tcp_port), Handler)
+        p = Process(target=server.serve_forever)
+        p.setDaemon(True), p.start()
+        return server
+    except Exception as e:
+        print(e)
+
+
+def run_server_udp(app):
+    try:
+        s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        s.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+        s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        bs = BlockingScheduler()
+        bs.add_job(func=s.sendto, args=("it's me".encode(), ('<broadcast>', app.udp_port),), trigger='interval', seconds=10)
+        p = Process(target=bs.start)
+        p.setDaemon(True), p.start()
+        return bs
+    except Exception as e:
+        print(e)
+
+
+def run_server_ftp(app):
+    try:
+        authorizer, handler = DummyAuthorizer(), FTPHandler
+        authorizer.add_anonymous(app.ftp_path)
+        handler.authorizer = authorizer
+        server = FTPServer((DEFAULT_LOCAL_ADDRESS, app.ftp_port), handler)
+        p = Process(target=server.serve_forever)
+        p.setDaemon(True), p.start()
+        return server
+    except Exception as e:
+        print(e)
 
 
 def run_client_tcp(app):
     class Handler(BaseRequestHandler):
         def handle(self):
-            info = self.request.recv(unpack("Q", self.request.recv(8))[0]).decode()
+            info = quick_recv(self.request)
             if info == CLIENT_KICK_OUT:
                 app.kick_out()
             elif info == CLIENT_COLLECT_WORK:
-                prob = eval(self.request.recv(unpack("Q", self.request.recv(8))[0]).decode())
-                lang = eval(self.request.recv(unpack("Q", self.request.recv(8))[0]).decode())
-                candi = list(chain.from_iterable([[no + su for su in lang] for no in prob]))
-                for name in candi:
-                    path = os.path.join(app.path, name)
-                    if os.path.isfile(path):
-                        f = open(path, "rb").read()
-                        self.request.sendall(pack("Q", len(f)))
-                        self.request.sendall(f)
-                self.request.sendall(pack("Q",len(SEND_FILE_OVER.encode())))
-                self.request.sendall(SEND_FILE_OVER.encode())
+                prob, lang = eval(quick_recv(self.request)), eval(quick_recv(self.request))
+                cand = list(chain.from_iterable([[no + su for su in lang] for no in prob]))
+                for name in cand:
+                    with open(os.path.join(app.path, name), "rb").read() as f:
+                        quick_send(self.request, [SEND_FILE_NOW, name, f])
+                quick_send(self.request, [SEND_FILE_OVER])
             elif info == CLIENT_RECV_FILE:
-                while True:
-                    name = self.request.recv(unpack("Q", self.request.recv(8))[0]).decode()
-                    if name == RECV_FILE_OVER:
-                        break
-                    fs, rs = unpack("Q", self.request.recv(8))[0], 0
-                    f = open(os.path.join(app.path, name), "wb")
-                    while rs < fs:
-                        data = self.request.recv(fs-rs)
-                        rs += len(data)
-                        f.write(data)
-                    f.close()
-    client = ThreadingTCPServer((DEFAULT_LOCAL_ADDRESS, app.client_port), Handler)
-    Process(target=client.serve_forever).start()
-    return client
+                quick_recv_file(self.request, app.path)
+
+    try:
+        client = ThreadingTCPServer(('', app.client_tcp_port), Handler)
+        p = Process(target=client.serve_forever)
+        p.setDaemon(True), p.start()
+        return client
+    except Exception as e:
+        print(e)
 
 
 def run_client_udp(app):
     class Handler(BaseRequestHandler):
         def handle(self):
-            pass
-    client = ThreadingUDPServer((DEFAULT_LOCAL_ADDRESS, app.udp_port),Handler)
+            app.server_address = self.client_address[0]
+
+    try:
+        client = ThreadingUDPServer(('', app.udp_port), Handler)
+        p = Process(target=client.serve_forever)
+        p.setDaemon(True), p.start()
+        return client
+    except Exception as e:
+        print(e)
 
 
 def kick_out(address, port):
-    s = socket()
     try:
-        s.connect((address, port))
-        s.sendall(pack("Q", len(CLIENT_KICK_OUT.encode())))
-        s.sendall(CLIENT_KICK_OUT.encode())
-    finally:
-        s.close()
+        with socket() as s:
+            s.connect((address, port)), quick_send(s, [CLIENT_KICK_OUT])
+    except Exception as e:
+        print(e)
 
 
-def broadcast_host(port):
-    s = socket(AF_INET,SOCK_DGRAM)
-    s.setsockopt()
-
-
-def get_host(port):
-
-
-
-def verity_packet(address, port, no, name):
-    s, data = socket(), {"no": no, "name": name}
+def verity_packet(app):
+    packet, info = {"no": app.no, "name": app.name}, CLIENT_KICK_OUT
     try:
-        s.connect((address, port))
-        s.sendall(pack("Q", len(str(data).encode())))
-        s.sendall(str(data).encode())
-        info = s.recv(unpack("Q",s.recv(8))[0]).decode()
-    except:
-        info = LOG_INFO_SERVER_ERROR
-    finally:
-        s.close()
+        with socket() as s:
+            s.connect((app.server_address, app.server_tcp_port))
+            quick_send(s, [packet])
+            info = quick_recv(s)
+    except Exception as e:
+        print(str(e))
     return info
 
 
-def User_Work(address, port, ID, PROBLEM):
-    s, data = socket.socket(), {"TYPE": CLIENT_COLLECT_WORK, "PROBLEM": PROBLEM}
+def collect_work(address, port, path, no, prob, lang):
+    if address is None or address == "":
+        return no, COLLECT_WORK_FAILED, []
     try:
-        s.connect((address, port))
-        s.sendall(str(data).encode())
-        info = ID, eval(s.recv(1024).decode())
-    except:
-        info = COLLECT_WORK_ERROR
-    s.close()
-    return info
+        with socket() as s:
+            s.connect((address, port))
+            quick_send(s, [CLIENT_COLLECT_WORK, prob, lang])
+            info, count = quick_recv_file(s, os.path.join(path, no))
+            return no, [COLLECT_WORK_ERROR, COLLECT_WORK_SUCCEED][info == RECV_FILE_SUCCEED], count
+    except Exception as e:
+        print(str(e))
+        return no, COLLECT_WORK_FAILED, []
 
 
-def Collect_Work(database, path, port):
-    user, pool, connection = Online_User(database, port), multiprocessing.Pool(), sqlite3.connect(database)
-    PROBLEM, work = [x[0] for x in Select(connection, "PROBLEM", ["ID"])], []
-    for ID, address in user:
-        pool.apply_async(User_Work, (address, port, ID, PROBLEM), callback=lambda x: work.append(x))
-    connection.close(), pool.close(), pool.join()
-    work = [x for x in work if x != COLLECT_WORK_ERROR]
-    for ID, data in work:
-        if not os.path.isdir(os.path.join(path, ID)):
-            os.mkdir(os.path.join(path, DEFAULT_WORK_DIR, ID))
-        for k, v in data.items():
-            f = open(os.path.join(path, ID, k), "w")
-            f.write(v), f.close()
+def collect_works(app, dialog):
+    try:
+        connection, pool = connect(app.database), Pool()
+        user = select(connection, "user", ["no", "ip"])
+        connection.close(), dialog.G.SetRange(len(user)), dialog.G.SetValue(0)
+        for no, ip in user:
+            pool.apply_async(func=collect_work,
+                             args=(ip, app.client_tcp_port, app.work_dir, no, app.prob, app.lang,),
+                             callback=lambda ic: dialog.update(ic[0], ic[1], ic[2]))
+        pool.close()
+    except Exception as e:
+        print(e)
 
 
-def User_File(address, port, file):
-    s, data = socket.socket(), {"TYPE": CLIENT_SEND_FILE}
+def send_file(address, port, path, no):
+    if address is None or address == "":
+        return no, SEND_FILE_FAILED, []
+    count = []
+    try:
+        with socket() as s:
+            s.connect((address, port))
+            quick_send(s, CLIENT_RECV_FILE)
+            for p in path:
+                with open(p, "rb").read() as f:
+                    quick_send(s, [SEND_FILE_NOW, os.path.basename(p), f])
+                    count.append(os.path.basename(p))
+            quick_send(s, [SEND_FILE_OVER])
+            return no, SEND_FILE_SUCCEED, count
+    except Exception as e:
+        print(e)
+        return no, SEND_FILE_ERROR, count
 
 
-def Send_File(database, file, port):
-    pass
+def send_files(app, dialog):
+    try:
+        connection, pool = connect(app.database), Pool()
+        user = select(connection, "user", ["no", "ip"])
+        connection.close(), dialog.G.SetRange(len(user)), dialog.G.SetValue(0)
+        path = [x.path for x in dialog.F.GetObjects()]
+        for no, ip in user:
+            pool.apply_async(func=send_file,
+                             args=(ip, app.client_tcp_port, path, no),
+                             callback=lambda ic: dialog.update(ic[0], ic[1], ic[2]))
+        pool.close()
+    except Exception as e:
+        print(e)
+
+
+def quick_send(s, d):
+    try:
+        for i in d:
+            i = str(i).encode()
+            s.sendall(pack("Q", len(i))), s.sendall(i)
+    except Exception as e:
+        print(e)
+
+
+def quick_recv(s):
+    return s.recv(unpack("Q", s.recv(8))[0]).decode()
+
+
+def quick_recv_file(s, p):
+    count = []
+    try:
+        if not os.path.isdir(p):
+            os.mkdir(p)
+        while quick_recv(s) != SEND_FILE_OVER:
+            name, fs, rs = quick_recv(s), unpack("Q", s.recv(8))[0], 0
+            with open(os.path.join(p, name), "wb") as f:
+                data = s.recv(fs - rs)
+                rs += len(data)
+                f.write(data)
+            count.append(name)
+        return RECV_FILE_SUCCEED, count
+    except Exception as e:
+        print(e)
+        return RECV_FILE_FAILED, count

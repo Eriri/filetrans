@@ -1,8 +1,7 @@
 import wx
 import sys
-from ftpbase import *
 from utilities import *
-
+from serverbase import *
 
 class FtpDialog(wx.Dialog):
     def __init__(self, parent, icon):
@@ -12,11 +11,11 @@ class FtpDialog(wx.Dialog):
         self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.HORIZONTAL)
 
         self.B.Add(wx.StaticText(self.P, -1, "端口"), 1, wx.EXPAND | wx.ALL, 5)
-        self.PORT = wx.TextCtrl(self.P, -1, "2121")
+        self.PORT = wx.TextCtrl(self.P, -1, str(self.GetParent().ftp_port))
         self.B.Add(self.PORT, 1, wx.EXPAND | wx.ALL, 5)
 
         self.B.Add(wx.StaticText(self.P, -1, "路径"), 1, wx.EXPAND | wx.ALL, 5)
-        self.PATH = wx.TextCtrl(self.P, -1, sys.path[0])
+        self.PATH = wx.TextCtrl(self.P, -1, str(self.GetParent().ftp_path))
         self.B.Add(self.PATH, 1, wx.EXPAND | wx.ALL, 5)
 
         self.SB = wx.Button(self.P, -1, "选择文件夹")
@@ -30,15 +29,18 @@ class FtpDialog(wx.Dialog):
         self.P.SetSizer(self.B)
 
     def select(self, event):
-        fd = wx.DirDialog(self, "选择文件夹", sys.path[0])
+        fd = wx.DirDialog(self, "选择文件夹", self.PATH.GetValue())
         if fd.ShowModal() == wx.ID_OK:
             self.PATH.SetValue(fd.GetPath())
 
     def click(self, event):
         try:
-            if self.PATH.GetValue() == "" or not str.isdigit(self.PORT.GetValue()) or int(self.PORT.GetValue()) >= 65536:
+            if not os.path.isdir(self.PATH.GetValue()) or int(self.PORT.GetValue()) >= 65536 or int(self.PORT.GetValue()) <= 0:
                 raise Exception("请输入正确配置")
-            self.GetParent().ftp_server = Run_Ftp(DEFAULT_LOCAL_ADDRESS, int(self.PORT.GetValue()), self.PATH.GetValue())
+            self.GetParent().ftp_path = self.PATH.GetValue()
+            self.GetParent().ftp_port = int(self.PORT.GetValue())
+            self.SetReturnCode(wx.ID_OK)
         except Exception as e:
+            self.SetReturnCode(wx.ID_ABORT)
             wx.MessageBox(str(e))
         self.Destroy()

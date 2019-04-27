@@ -13,10 +13,22 @@ CLIENT_RECV_FILE = "RECV FILE"
 CLIENT_VERITY = "VERITY"
 CLIENT_LOG_IN = "LOG IN"
 CLIENT_LOG_OUT = "LOG OUT"
+
 CLIENT_COLLECT_WORK = "COLLECT WORK"
-RECV_FILE_OVER = "RECV FILE OVER"
-SEND_FILE_OVER = "SEND FILE OVER"
+COLLECT_WORK_SUCCEED = "COLLECT WORK SUCCEED"
+COLLECT_WORK_FAILED = "COLLECT WORK FAILED"
 COLLECT_WORK_ERROR = "COLLECT ERROR"
+
+RECV_FILE_OVER = "RECV FILE OVER"
+RECV_FILE_SUCCEED = "RECV FILE SUCCEED"
+RECV_FILE_FAILED = "RECV FILE FAILED"
+
+SEND_FILE_NOW = "SEND FILE NOW"
+SEND_FILE_OVER = "SEND FILE OVER"
+SEND_FILE_SUCCEED = "SEND FILE SUCCEED"
+SEND_FILE_ERROR = "SEND FILE ERROR"
+SEND_FILE_FAILED = "SEND FILE FAILED"
+
 LANGUAGE_CONFIG = [".c", ".cpp", ".java", ".py", ".pas"]
 IMPORT_FROM_XLS_SUCCEED = "导入成功"
 IMPORT_FROM_XLS_ERROR = "导入错误"
@@ -27,39 +39,82 @@ DEFAULT_PROBLEM_DIR = "problems"
 DEFAULT_WORK_DIR = "works"
 TABLE_USER = 'create table user(no text primary key not null,name text not null,ip text,point int)'
 TABLE_PROBLEM = 'create table problem(no text primary key not null,time real not null,memory int not null)'
-TABLE_TEST = 'create table test(path text primary key,belong text not null,point int not null)'
-DEFAULT_LOCAL_ADDRESS = "127.0.0.1"
-DEFAULT_SERVER_PORT = 8080
-DEFAULT_CLIENT_PORT = 8080
+TABLE_TEST = 'create table test(no text primary key,belong text not null,in_path text,out_path text,point int not null)'
+DEFAULT_SERVER_TCP_PORT = 7777
+DEFAULT_CLIENT_TCP_PORT = 8888
+DEFAULT_UDP_PORT = 9999
+DEFAULT_FTP_PORT = 2121
 PROJECT_STATUS_ON = "PROJECT_STATUS_ON"
 PROJECT_STATUS_OFF = "PROJECT_STATUS_OFF"
+DEFAULT_LOCAL_ADDRESS = "127.0.0.1"
 
 
-def Has(path, x):
-    for suffix in LANGUAGE_CONFIG:
-        if os.path.isfile(os.path.join(path, x, suffix)):
+def has(path, x, lang):
+    for su in lang:
+        if os.path.isfile(os.path.join(path, x+su)):
             return 1
     return 0
 
 
 class Model(object):
-    def __init__(self, ID, NAME, PROBLEM, POINT, IP, TIME, path):
-        self.ID = ID
-        self.NAME = NAME
-        self.PROBLEM = " ".join([x+["☒", "☑"][Has(path, x)] for x in PROBLEM])
-        self.POINT = POINT
-        self.IP = IP
-        self.TIME = time.ctime(TIME)
+    def __init__(self, no, name=None, prob=None, ip=None, point=None, path=None, lang=None):
+        self.no = no
+        self.name = name
+        self.prob = " ".join([x+["🗷", "🗹"][has(os.path.join(path,no), x, lang)] for x in prob]) if prob is not None else ""
+        self.ip = ip
+        self.point = point
+        self.path = os.path.join(path, no)
 
     def __eq__(self, other):
-        return hash(self.ID) == hash(other.ID)
+        return hash(self.no) == hash(other.no)
 
     def __hash__(self):
-        return hash(self.ID)
+        return hash(self.no)
+
+    def fresh_prob(self, prob, lang):
+        self.prob = " ".join([x+["🗷", "🗹"][has(self.path, x, lang)] for x in prob])
 
 
 class Test(object):
-    def __init__(self, PATH, BELONG, POINT):
-        self.PATH = PATH
-        self.BELONG = BELONG
-        self.POINT = POINT
+    def __init__(self, no, belong, in_path, out_path, point):
+        self.no = no
+        self.belong = belong
+        self.in_path = in_path
+        self.out_path = out_path
+        self.point = point
+
+    def __eq__(self, other):
+        return hash(self.no) == hash(other.no)
+
+    def __hash__(self):
+        return hash(self.no)
+
+
+class SR(object):
+    def __init__(self, no, name=None, ip=None, op=None, files=None):
+        self.no = no
+        self.name = name
+        self.ip = ip
+        self.info = ""
+        if op is not None:
+            self.info = op + str(files)
+
+    def __eq__(self, other):
+        return hash(self.no) == hash(other.no)
+
+    def __hash__(self):
+        return hash(self.no)
+
+    def fresh_info(self, op, files):
+        self.info = op + str(files) if len(files) > 0 else op
+
+
+class FP(object):
+    def __init__(self, path):
+        self.path = path
+
+    def __eq__(self, other):
+        return hash(self.path) == hash(other.path)
+
+    def __hash__(self):
+        return hash(self.path)

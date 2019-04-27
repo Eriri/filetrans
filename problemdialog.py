@@ -1,28 +1,29 @@
 import wx
 import sys
-import sqlite3
+from sqlite3 import connect
 from ObjectListView import ObjectListView, ColumnDefn
 from sqlbase import *
 from utilities import *
 
 
 class ProblemDialog(wx.Dialog):
-    def __init__(self, parent, icon, database, path):
-        wx.Dialog.__init__(self, parent, -1, "PD", (0, 0), (500, 300), wx.DEFAULT_FRAME_STYLE, "problem")
-        self.SetIcon(icon), self.SetMinSize((500, 300)), self.Center(wx.BOTH)
-        self.icon, self.database, self.path = icon, database, path
+    def __init__(self, app):
+        wx.Dialog.__init__(self, app, -1, "PD", (0, 0), (500, 300), wx.DEFAULT_FRAME_STYLE, "problem")
+        self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(wx.BOTH)
         self.P = wx.Panel(self)
         self.PL, self.PR = wx.Panel(self.P), wx.Panel(self.P)
         self.B, self.BL, self.BR = wx.BoxSizer(wx.HORIZONTAL), wx.BoxSizer(wx.VERTICAL), wx.BoxSizer(wx.VERTICAL)
 
         self.CB = wx.ComboBox(parent=self.PL, id=-1, value="None", choices=["None"], style=wx.CB_READONLY)
-        self.Bind(wx.EVT_COMBOBOX,self.update,self.CB)
+        self.Bind(wx.EVT_COMBOBOX, self.update, self.CB)
         self.BL.Add(self.CB, 0, wx.EXPAND | wx.ALL, 5)
 
         self.OLV = ObjectListView(parent=self.PL, sortable=True, id=-1, style=wx.LC_REPORT)
         self.OLV.SetColumns([
-            ColumnDefn("路径", "left", 100, "PATH"),
-            ColumnDefn("分数", "left", 100, "POINT")])
+            ColumnDefn("测试点", "left", 100, "no"),
+            ColumnDefn("输入", "left", 100, "in_path"),
+            ColumnDefn("输出", "left", 100, "out_path"),
+            ColumnDefn("分数", "left", 100, "point")])
         self.OLV.CreateCheckStateColumn()
         self.BL.Add(self.OLV, 1, wx.EXPAND | wx.ALL, 5)
 
@@ -43,29 +44,35 @@ class ProblemDialog(wx.Dialog):
     def add(self, event):
         try:
             if event.GetId() == 0:
-                EditProblem(self, self.icon, self.database).ShowModal()
+                EditProblem(self).ShowModal()
             if event.GetId() == 1 and self.CB.GetValue() != "None":
-                i = self.CB.GetValue().split()[0].split(":")[1]
-                p = os.path.join(self.path, DEFAULT_PROBLEM_DIR, i)
-                md = wx.MessageDialog(self, "确认从目录"+p+"中自动导入测试样点？", style=wx.YES_NO)
+                p = os.path.join(self.GetParent().prob_dir, self.CB.GetValue())
+                md = wx.MessageDialog(self, "确认从目录" + p + "中自动导入测试样点？", style=wx.YES_NO)
                 if md.ShowModal() == wx.ID_YES and os.path.isdir(p):
                     fl = [x for x in os.listdir(p) if os.path.isfile(os.path.join(p, x))]
-                    inl = [x.split(".")[0] for x in fl if len(x.split("."))==2 and x.split(".")[1] == "in"]
-                    outl = [x.split(".")[0] for x in fl if len(x.split("."))==2 and x.split(".")[1] == "out"]
-                    val = [os.path.join(p,str(x)+".in")+" "+os.path.join(p,str(x)+".out") for x in inl if x in outl]
+                    inl = [x.split(".")[0] for x in fl if len(x.split(".")) == 2 and x.split(".")[1] == "in"]
+                    outl = [x.split(".")[0] for x in fl if len(x.split(".")) == 2 and x.split(".")[1] == "out"]
+                    val = [x for x in inl if x in outl]
+                    connection = connect(self.GetParent().database)
                     for f in val:
-                        Import_Test(self.database,f,i,10)
+                        insert(connection, "test", ["no", "belong", "in_path", "out_path", "point"],
+                               [os.path.basename(f), self.CB.GetValue(), os.path.join(p, f) + ".in", os.path.join(p, f) + ".out", 10])
+                    connection.commit(), connection.close()
             if event.GetId() == 2 and self.CB.GetValue() != "None":
-                EditTest(self,self.icon,self.database,self.CB.GetValue().split()[0].split(":")[1]).ShowModal()
+                EditTest(self, self.CB.GetValue()).ShowModal()
             if event.GetId() == 3:
-                Delete_Test(self.database,PATHs=[x.PATH for x in self.OLV.GetCheckedObjects()])
+                connection = connect(self.GetParent().database)
+                obj = self.OLV.GetCheckedObjects()
+                for o in obj:
+                    delete(connection, "test", ["no"], [o.no])
+                connection.commit(), connection.close()
         except Exception as e:
             wx.MessageBox(str(e))
         self.fresh()
 
     def fresh(self, event=None):
-        connection, pre = sqlite3.connect(self.database), self.CB.GetValue()
-        choices = ["题目:"+str(x[0])+"   时限:"+str(x[1])+"秒   空间:"+str(x[2])+"兆" for x in Select(connection, "PROBLEM", ["*"])]
+        connection, pre = connect(self.GetParent().database), self.CB.GetValue()
+        choices = [x[0] for x in select(connection, "problem", ["no"])]
         connection.close()
         self.CB.Clear(), choices.append("None"), self.CB.AppendItems(choices)
         self.CB.SetValue(pre) if pre in choices else self.CB.SetValue("None")
@@ -74,18 +81,18 @@ class ProblemDialog(wx.Dialog):
     def update(self, event=None):
         self.OLV.DeleteAllItems()
         if self.CB.GetValue() != "None":
-            connection,i = sqlite3.connect(self.database),self.CB.GetValue().split()[0].split(":")[1]
-            self.OLV.AddObjects(
-                [Test(x[0], x[1], x[2]) for x in Select(connection, "TEST", ["*"], ["BELONG"], [i])])
+            connection, i = connect(self.GetParent().database), self.CB.GetValue()
+            test = select(connection, "test", ["*"], ["belong"], [i])
             connection.close()
+            self.OLV.AddObjects(
+                [Test(no, belong, in_path, out_path, point) for no, belong, in_path, out_path, point in test])
 
 
 class EditProblem(wx.Dialog):
-    def __init__(self, parent, icon, database):
-        wx.Dialog.__init__(self, parent, -1, "EP", (0, 0), (550, 120),
+    def __init__(self, app):
+        wx.Dialog.__init__(self, app, -1, "EP", (0, 0), (550, 120),
                            wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX), "ep")
-        self.icon, self.database = icon, database
-        self.Center(wx.BOTH), self.SetIcon(self.icon)
+        self.Center(wx.BOTH), self.SetIcon(app.GetParent().GetIcon())
 
         self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.VERTICAL)
         self.PU, self.BU = wx.Panel(self.P), wx.BoxSizer(wx.HORIZONTAL)
@@ -102,9 +109,9 @@ class EditProblem(wx.Dialog):
         self.PU.SetSizer(self.BU)
 
         self.BD.Add(wx.StaticText(self.PD, -1, "题目名称:"), 1, wx.EXPAND | wx.ALL, 5)
-        self.ID = wx.TextCtrl(self.PD, -1)
-        self.ID.SetMaxSize((60, 60))
-        self.BD.Add(self.ID, 1, wx.ALL, 5)
+        self.NO = wx.TextCtrl(self.PD, -1)
+        self.NO.SetMaxSize((60, 60))
+        self.BD.Add(self.NO, 1, wx.ALL, 5)
 
         self.BD.Add(wx.StaticText(self.PD, -1, "运行时限/秒:"), 1, wx.EXPAND | wx.ALL, 5)
         self.TIME = wx.TextCtrl(self.PD, -1)
@@ -126,8 +133,8 @@ class EditProblem(wx.Dialog):
         self.fresh()
 
     def fresh(self, event=None):
-        connection, pre = sqlite3.connect(self.database), self.CB.GetValue()
-        choices = [x[0] for x in Select(connection, "PROBLEM", ["ID"])]
+        connection, pre = connect(self.GetParent().GetParent().database), self.CB.GetValue()
+        choices = [x[0] for x in select(connection, "problem", ["no"])]
         self.CB.Clear(), choices.append("None"), connection.close()
         self.CB.AppendItems(choices)
         self.CB.SetValue(pre) if pre in choices else self.CB.SetValue("None")
@@ -135,27 +142,32 @@ class EditProblem(wx.Dialog):
 
     def update(self, event=None):
         if self.CB.GetValue() == "None":
-            self.ID.SetEditable(True),self.ID.SetValue(""),self.TIME.SetValue(""),self.MEMORY.SetValue("")
+            self.NO.SetEditable(True), self.NO.SetValue(""), self.TIME.SetValue(""), self.MEMORY.SetValue("")
         else:
-            connection = sqlite3.connect(self.database)
-            data = Select(connection, "PROBLEM", ["TIME", "MEMORY"], ["ID"], [self.CB.GetValue()])[0]
-            self.ID.SetValue(self.CB.GetValue()), self.ID.SetEditable(False)
-            self.TIME.SetValue(str(data[0])), self.MEMORY.SetValue(str(data[1]))
+            connection = connect(self.GetParent().GetParent().database)
+            data = select_one(connection, "problem", ["time", "memory"], ["no"], [self.CB.GetValue()])
             connection.close()
+            self.NO.SetValue(self.CB.GetValue()), self.NO.SetEditable(False)
+            self.TIME.SetValue(str(data[0])), self.MEMORY.SetValue(str(data[1]))
 
     def delete(self, event):
         try:
             if self.CB.GetValue() != "None":
-                Delete_Problem(self.database, [self.CB.GetValue()])
-                Delete_Test(self.database,BELONGs=[self.CB.GetValue()])
+                connection = connect(self.GetParent().GetParent().database)
+                delete(connection, "problem", ["no"], [self.CB.GetValue()])
+                delete(connection, "test", ["belong"], [self.CB.GetValue()])
+                connection.commit(), connection.close()
                 self.fresh()
         except Exception as e:
             wx.MessageBox(str(e))
 
     def edit(self, event):
         try:
-            if float(self.TIME.GetValue()) > 0 and int(self.MEMORY.GetValue()) > 0 and len(self.ID.GetValue()) > 0:
-                Import_Problem(self.database, self.ID.GetValue(), float(self.TIME.GetValue()), int(self.MEMORY.GetValue()))
+            if float(self.TIME.GetValue()) > 0 and int(self.MEMORY.GetValue()) > 0 and len(self.NO.GetValue()) > 0:
+                connection = connect(self.GetParent().GetParent().database)
+                insert(connection, "problem", ["no", "time", "memory"],
+                       [self.NO.GetValue(), float(self.TIME.GetValue()), int(self.MEMORY.GetValue())])
+                connection.commit(), connection.close()
                 self.fresh()
             else:
                 raise Exception("请输入正确参数")
@@ -164,50 +176,58 @@ class EditProblem(wx.Dialog):
 
 
 class EditTest(wx.Dialog):
-    def __init__(self,parent,icon,database,belong):
-        wx.Dialog.__init__(self,parent,-1,"ET",(0,0),(700,70),
+    def __init__(self, app, belong):
+        wx.Dialog.__init__(self, app, -1, "ET", (0, 0), (700, 70),
                            wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX), "et")
-        self.icon, self.database,self.belong = icon, database, belong
-        self.Center(wx.BOTH), self.SetIcon(self.icon)
+        self.belong = belong
+        self.Center(wx.BOTH), self.SetIcon(self.GetParent().GetParent().GetIcon())
 
         self.P = wx.Panel(self)
         self.B = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.I = wx.TextCtrl(self.P,-1,"")
-        self.I.SetMaxSize((80,70))
-        self.B.Add(self.I,1,wx.ALL,5)
-        self.IB = wx.Button(self.P,0,"选择输入文件路径")
-        self.Bind(wx.EVT_BUTTON,self.select,self.IB)
-        self.B.Add(self.IB,1,wx.EXPAND|wx.ALL,5)
+        self.B.Add(wx.StaticText(self.P, -1, "测试点"), 1, wx.EXPAND | wx.ALL, 5)
+        self.NO = wx.TextCtrl(self.P, -1, "")
+        self.NO.SetMaxSize((80, 70))
+        self.B.Add(self.NO, 1, wx.ALL, 5)
 
-        self.O = wx.TextCtrl(self.P, -1, "")
-        self.O.SetMaxSize((80, 70))
-        self.B.Add(self.O, 1,wx.ALL, 5)
-        self.OB = wx.Button(self.P, 1, "选择输出文件路径")
+        self.IB = wx.Button(self.P, 0, "输入路径")
+        self.Bind(wx.EVT_BUTTON, self.select, self.IB)
+        self.B.Add(self.IB, 1, wx.EXPAND | wx.ALL, 5)
+        self.I = wx.TextCtrl(self.P, -1, "")
+        self.I.SetMaxSize((80, 70))
+        self.B.Add(self.I, 1, wx.ALL, 5)
+
+        self.OB = wx.Button(self.P, 1, "输出路径")
         self.Bind(wx.EVT_BUTTON, self.select, self.OB)
         self.B.Add(self.OB, 1, wx.EXPAND | wx.ALL, 5)
+        self.O = wx.TextCtrl(self.P, -1, "")
+        self.O.SetMaxSize((80, 70))
+        self.B.Add(self.O, 1, wx.ALL, 5)
 
-        self.B.Add(wx.StaticText(self.P,-1,"测试点分数"),1,wx.EXPAND|wx.ALL,5)
-        self.PT = wx.TextCtrl(self.P,-1)
+        self.B.Add(wx.StaticText(self.P, -1, "分数"), 1, wx.EXPAND | wx.ALL, 5)
+        self.PT = wx.TextCtrl(self.P, -1)
         self.PT.SetMaxSize((80, 70))
-        self.B.Add(self.PT,1, wx.ALL,5)
+        self.B.Add(self.PT, 1, wx.ALL, 5)
 
-        self.OK = wx.Button(self.P,-1,"添加")
-        self.Bind(wx.EVT_BUTTON,self.click,self.OK)
-        self.B.Add(self.OK,1,wx.EXPAND|wx.ALL,5)
+        self.OK = wx.Button(self.P, -1, "添加")
+        self.Bind(wx.EVT_BUTTON, self.click, self.OK)
+        self.B.Add(self.OK, 1, wx.EXPAND | wx.ALL, 5)
 
         self.P.SetSizer(self.B)
 
-    def select(self,event):
-        fd = wx.FileDialog(self,"选择文件",sys.path[0])
-        fd.SetIcon(self.icon),fd.Center(wx.BOTH)
+    def select(self, event):
+        fd = wx.FileDialog(self, "选择文件", sys.path[0])
+        fd.SetIcon(self.GetParent().GetParent().GetIcon()), fd.Center(wx.BOTH)
         if fd.ShowModal() == wx.ID_OK:
-            [self.I,self.O][event.GetId()].SetValue(fd.GetPath())
+            [self.I, self.O][event.GetId()].SetValue(fd.GetPath())
 
-    def click(self,event):
+    def click(self, event):
         try:
-            if os.path.isfile(self.I.GetValue()) and os.path.isfile(self.O.GetValue()) and int(self.PT.GetValue())>=0:
-                Import_Test(self.database,self.I.GetValue()+" "+self.O.GetValue(),self.belong,int(self.PT.GetValue()))
+            if self.NO.GetValue() != "" and os.path.isfile(self.I.GetValue()) and os.path.isfile(self.O.GetValue()) and int(self.PT.GetValue()) >= 0:
+                connection = connect(self.GetParent().GetParent().database)
+                insert(connection, "test", ["no", "belong", "in_path", "out_path", "point"],
+                       [self.NO.GetValue(), self.belong, self.I.GetValue(), self.O.GetValue(), self.PT.GetValue()])
+                connection.commit(), connection.close()
             else:
                 raise Exception("请输入正确参数")
         except Exception as e:
