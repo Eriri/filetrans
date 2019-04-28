@@ -72,7 +72,7 @@ def run_client_tcp(app):
     class Handler(BaseRequestHandler):
         def handle(self):
             info = quick_recv(self.request)
-            if info == CLIENT_KICK_OUT:
+            if info == CLIENT_VERITY_FAILED:
                 app.close("已被服务器踢出")
             elif info == CLIENT_COLLECT_WORK:
                 prob, lang = eval(quick_recv(self.request)), eval(quick_recv(self.request))
@@ -134,6 +134,7 @@ def kick_out(address, port):
 
 
 def verity_packet(app):
+    info, prob, lang = CLIENT_VERITY_FAILED, None, None
     try:
         if app.server_address is None:
             raise Exception("No address")
@@ -142,12 +143,13 @@ def verity_packet(app):
             quick_send(s, [CLIENT_VERITY, {"no": str(app.no), "name": str(app.name)}])
             info, prob, lang = quick_recv(s), eval(quick_recv(s)), eval(quick_recv(s))
         if info == CLIENT_VERITY_SUCCEED:
-            app.fresh_prob_lang(prob, lang)
+            pass
         elif info == CLIENT_VERITY_FAILED:
             app.close("登录信息错误或在别的机器上登录")
     except Exception as e:
         info = CLIENT_SEARCH_SERVER
         app.fresh_server_info(CLIENT_SEARCH_SERVER)
+    app.fresh_prob_lang(prob, lang)
     return info
 
 
