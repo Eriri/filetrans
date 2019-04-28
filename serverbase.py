@@ -16,10 +16,11 @@ from utilities import *
 def run_server_tcp(app):
     class Handler(BaseRequestHandler):
         def handle(self):
-            packet, connection, nos = quick_recv(self.request), connect(app.database), []
-            name = select_one(connection, "user", ["name"], ["no"], packet["no"])
+            info, packet = quick_recv(self.request), eval(quick_recv(self.request))
+            connection, nos = connect(app.database), []
+            name = select_one(connection, "user", ["name"], ["no"], [packet["no"]])
             if name is None or name[0] != packet["name"]:
-                quick_send(self.request, [CLIENT_KICK_OUT, app.prob])
+                quick_send(self.request, [CLIENT_VERITY_FAILED, app.prob, app.lang])
             else:
                 ip = select_one(connection, "user", ["ip"], ["no"], [packet["no"]])[0]
                 if ip is not None and ip != self.client_address[0]:
@@ -28,7 +29,7 @@ def run_server_tcp(app):
                 if no is not None and no[0] != packet["no"]:
                     update(connection, "user", ["ip"], ["NULL"], ["no"], [no[0]]), nos.append(no[0])
                 update(connection, "user", ["ip"], [self.client_address[0]], ["no"], [packet["no"]])
-                nos.append(packet["no"]), quick_send(self.request, [CLIENT_VERITY, app.prob])
+                nos.append(packet["no"]), quick_send(self.request, [CLIENT_VERITY_SUCCEED, app.prob, app.lang])
             connection.commit(), connection.close(), app.update(nos)
 
     try:
@@ -77,11 +78,20 @@ def run_client_tcp(app):
                 prob, lang = eval(quick_recv(self.request)), eval(quick_recv(self.request))
                 cand = list(chain.from_iterable([[no + su for su in lang] for no in prob]))
                 for name in cand:
-                    with open(os.path.join(app.path, name), "rb").read() as f:
-                        quick_send(self.request, [SEND_FILE_NOW, name, f])
+                    if os.path.isfile(os.path.join(app.path, name)):
+                        with open(os.path.join(app.path, name), "rb") as f:
+                            quick_send(self.request, [SEND_FILE_NOW, name])
+                            data = f.read()
+                            self.request.sendall(pack("Q", len(data)))
+                            self.request.sendall(data)
                 quick_send(self.request, [SEND_FILE_OVER])
+                app.show_info("已成功发送作业", quick_recv(self.request))
             elif info == CLIENT_RECV_FILE:
-                quick_recv_file(self.request, app.path)
+                info, count, error = quick_recv_file(self.request, app.path)
+                if info == RECV_FILE_SUCCEED:
+                    app.show_info("已成功接收文件", count)
+                else:
+                    app.show_info("接收文件发生错误，已接收", count, error)
 
     try:
         client = ThreadingTCPServer(('', app.client_tcp_port), Handler)
@@ -96,6 +106,7 @@ def run_client_udp(app):
     class Handler(BaseRequestHandler):
         def handle(self):
             app.server_address = self.client_address[0]
+            app.fresh_server_info(CLIENT_DISCOVER_SERVER)
 
     try:
         client = ThreadingUDPServer(('', app.udp_port), Handler)
@@ -117,7 +128,7 @@ def run_client_verity(app):
 def kick_out(address, port):
     try:
         with socket() as s:
-            s.connect((address, port)), quick_send(s, [CLIENT_KICK_OUT])
+            s.connect((address, port)), quick_send(s, [CLIENT_VERITY_FAILED])
     except Exception as e:
         pass
 
@@ -128,39 +139,42 @@ def verity_packet(app):
             raise Exception("No address")
         with socket() as s:
             s.connect((app.server_address, app.server_tcp_port))
-            quick_send(s, [CLIENT_VERITY, {"no": app.no, "name": app.name}])
-            info, prob = quick_recv(s), eval(quick_recv(s))
+            quick_send(s, [CLIENT_VERITY, {"no": str(app.no), "name": str(app.name)}])
+            info, prob, lang = quick_recv(s), eval(quick_recv(s)), eval(quick_recv(s))
         if info == CLIENT_VERITY_SUCCEED:
-            app.fresh_prob(prob)
+            app.fresh_prob_lang(prob, lang)
         elif info == CLIENT_VERITY_FAILED:
-            app.close()
-        app.fresh_verity_info(info, str(app.server_address))
+            app.close("登录信息错误或在别的机器上登录")
     except Exception as e:
-        info = CLIENT_VERITY_FAILED
-        app.fresh_verity_info(CLIENT_SEARCH_SERVER, str(e)) 
+        info = CLIENT_SEARCH_SERVER
+        app.fresh_server_info(CLIENT_SEARCH_SERVER)
     return info
 
 
 def collect_work(address, port, path, no, prob, lang):
     count = []
-    if address is None:
-        raise Exception("No address")
     try:
-        with socket() as s:
-            s.connect((address, port))
-            quick_send(s, [CLIENT_COLLECT_WORK, prob, lang])
-            info, count, error = quick_recv_file(s, os.path.join(path, no))
-            return no, count, [COLLECT_WORK_FAILED, COLLECT_WORK_SUCCEED][info == RECV_FILE_SUCCEED], error
+        if address is None or address == "":
+            raise Exception("No address")
+        s = socket()
+        s.settimeout(1)
+        s.connect((address, port))
+        quick_send(s, [CLIENT_COLLECT_WORK, prob, lang])
+        info, count, error = quick_recv_file(s, os.path.join(path, no))
+        quick_send(s, [count])
+        s.close()   
+        return no, count, [COLLECT_WORK_FAILED, COLLECT_WORK_SUCCEED][info == RECV_FILE_SUCCEED], error
     except Exception as e:
         print(str(e))
         return no, COLLECT_WORK_FAILED, count, 
 
 
-def collect_works(app, dialog):
+def collect_works(app, dialog, aop):
     try:
-        connection, pool = connect(app.database), Pool()
-        user = select(connection, "user", ["no", "ip"])
-        connection.close(), dialog.G.SetRange(len(user)), dialog.G.SetValue(0)
+        pool = Pool()
+        objs = [dialog.OLV.GetObjects(), dialog.OLV.GetCheckedObjects()][aop]
+        user = [(obj.no, obj.ip) for obj in objs]
+        dialog.G.SetRange(len(user)), dialog.G.SetValue(0)
         for no, ip in user:
             pool.apply_async(func=collect_work,
                              args=(ip, app.client_tcp_port, app.work_dir, no, app.prob, app.lang,),
@@ -173,24 +187,30 @@ def collect_works(app, dialog):
 def send_file(address, port, path, no):
     count = []
     try:
-        with socket() as s:
-            s.connect((address, port))
-            quick_send(s, [CLIENT_RECV_FILE])
-            for p in path:
-                with open(p, "rb").read() as f:
-                    quick_send(s, [SEND_FILE_NOW, os.path.basename(p), f])
-                    count.append(os.path.basename(p))
+        if address is None or address == "":
+            raise Exception("No address")
+        s = socket()
+        s.settimeout(1)
+        s.connect((address, port))
+        quick_send(s, [CLIENT_RECV_FILE])
+        for p in path:
+            with open(p, "rb") as f:
+                data = f.read()
+                quick_send(s, [SEND_FILE_NOW, os.path.basename(p)])
+                s.sendall(pack("Q",len(data))), s.sendall(data)
+                count.append(os.path.basename(p))
             quick_send(s, [SEND_FILE_OVER])
         return no, count, SEND_FILE_SUCCEED, NO_ERROR, 
     except Exception as e:
         return no, count, SEND_FILE_FAILED, str(e)
 
 
-def send_files(app, dialog):
+def send_files(app, dialog, aop):
     try:
-        connection, pool = connect(app.database), Pool()
-        user = select(connection, "user", ["no", "ip"])
-        connection.close(), dialog.G.SetRange(len(user)), dialog.G.SetValue(0)
+        pool = Pool()
+        objs = [dialog.U.GetObjects(), dialog.U.GetCheckedObjects()][aop-2]
+        user = [(obj.no, obj.ip) for obj in objs]
+        dialog.G.SetRange(len(user)), dialog.G.SetValue(0)
         path = [x.path for x in dialog.F.GetObjects()]
         for no, ip in user:
             pool.apply_async(func=send_file,

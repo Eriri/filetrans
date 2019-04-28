@@ -19,11 +19,13 @@ class SendDialog(Dialog):
             ColumnDefn("姓名", "left", 100, "name"),
             ColumnDefn("IP地址", "left", 100, "ip"),
             ColumnDefn("发送情况", "left", 200, "info")])
+        self.U.CreateCheckStateColumn()
         self.BL.Add(self.U, 1, EXPAND | ALL, 5)
 
         self.PL.SetSizer(self.BL)
 
-        self.Bt = [Button(self.PR, 0, "添加文件"), Button(self.PR, 1, "删除文件"), Button(self.PR, 2, "开始发送")]
+        self.Bt = [Button(self.PR, 0, "添加文件"), Button(self.PR, 1, "删除文件"), 
+                   Button(self.PR, 2, "全部发送"), Button(self.PR, 3, "发送选中用户")]
         for b in self.Bt:
             self.BR.Add(b, 1, EXPAND | ALL, 5), self.Bind(EVT_BUTTON, self.button_func, b)
 
@@ -62,7 +64,7 @@ class SendDialog(Dialog):
                         self.F.AddObject(FP(x))
         elif event.GetId() == 1:
             self.F.RemoveObjects(self.F.GetCheckedObjects())
-        elif event.GetId() == 2:
+        else:
             for b in self.Bt:
                 b.Disable()
-            send_files(self.GetParent(), self)
+            send_files(self.GetParent(), self, event.GetId())

@@ -9,7 +9,7 @@ from ftpdialog import FtpDialog
 
 class MainFrame(Frame):
     def __init__(self):
-        Frame.__init__(self, None, -1, "FT", (0, 0), (600, 400), DEFAULT_FRAME_STYLE, "ft")
+        Frame.__init__(self, None, -1, "FTServer", (0, 0), (600, 400), DEFAULT_FRAME_STYLE, "ft")
         self.path, self.database, self.work_dir, self.prob_dir = None, None, None, None
         self.server_tcp_port, self.client_tcp_port, self.tcp_server = DEFAULT_SERVER_TCP_PORT, DEFAULT_CLIENT_TCP_PORT, None
         self.udp_port, self.udp_server = DEFAULT_UDP_PORT, None
@@ -99,7 +99,7 @@ class MainFrame(Frame):
                 if int(port) >= 65536 or int(port) <= 0:
                     raise Exception("请输入正确端口")
                 self.server_tcp_port = int(port)
-                if self.status is PROJECT_STATUS_ON:
+                if self.tcp_server is not None:
                     self.tcp_server.shutdown(), self.tcp_server.server_close()
                     self.tcp_server = run_server_tcp(self)
         except Exception as e:
@@ -124,7 +124,7 @@ class MainFrame(Frame):
                 if int(port) >= 65536 or int(port) <= 0:
                     raise Exception("请输入正确端口")
                 self.udp_port = int(port)
-                if self.status == PROJECT_STATUS_ON:
+                if self.udp_server is not None:
                     self.udp_server.shutdown()
                     self.udp_server = run_server_udp(self)
         except Exception as e:

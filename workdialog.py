@@ -14,11 +14,16 @@ class WorkDialog(Dialog):
             ColumnDefn("姓名", "left", 100, "name"),
             ColumnDefn("IP地址", "left", 100, "ip"),
             ColumnDefn("接收情况", "left", 200, "info")])
+        self.OLV.CreateCheckStateColumn()
         self.B.Add(self.OLV, 1, EXPAND | ALL, 5)
 
-        self.C = Button(self.PR, -1, "开始接收")
+        self.C = Button(self.PR, 0, "全部接收")
         self.Bind(EVT_BUTTON, self.collect, self.C)
         self.BR.Add(self.C, 0, EXPAND | ALL, 5)
+
+        self.CS = Button(self.PR, 1, "接收选中用户")
+        self.Bind(EVT_BUTTON, self.collect, self.CS)
+        self.BR.Add(self.CS, 0, EXPAND | ALL, 5)
 
         self.G = Gauge(self.PR, -1, style=GA_VERTICAL)
         self.BR.Add(self.G, 1, EXPAND | ALL, 5)
@@ -43,8 +48,9 @@ class WorkDialog(Dialog):
             obj.fresh_info("接收发生失败，已接收", count, error)
         self.OLV.RefreshObject(obj), self.G.SetValue(self.G.GetValue() + 1)
         if self.G.GetValue() == self.G.GetRange():
-            self.C.Enable()
+            self.C.Enable(), self.CS.Enable()
 
-    def collect(self, event=None):
-        self.C.Disable(), collect_works(self.GetParent(), self)
+    def collect(self, event):
+        self.C.Disable(), self.CS.Disable()
+        collect_works(self.GetParent(), self, event.GetId())
 
