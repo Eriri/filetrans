@@ -1,5 +1,5 @@
 import os
-from wx import EVT_BUTTON, EVT_MENU, EVT_COMBOBOX
+from wx import EVT_BUTTON, EVT_MENU, EVT_COMBOBOX, EVT_CLOSE, EVT_ICONIZE
 from wx import HORIZONTAL, VERTICAL, EXPAND, ALL, BOTH, GA_VERTICAL
 from wx import ID_OK, ID_YES, YES_NO, ICON_QUESTION, ID_ABORT
 from wx import BITMAP_TYPE_ICO
@@ -8,7 +8,9 @@ from wx import Frame, Dialog, Icon, MenuBar, Menu, Panel, BoxSizer, Button, Gaug
 from wx import DirDialog,  TextEntryDialog, MultiChoiceDialog, MessageDialog, FileDialog
 from wx import MessageBox, ComboBox
 from wx import TextCtrl, StaticText
-from wx import App, SingleInstanceChecker, GetUserId
+from wx import App, SingleInstanceChecker, GetUserId, NewId
+from wx.adv import TaskBarIcon, EVT_TASKBAR_LEFT_DOWN, EVT_TASKBAR_RIGHT_DOWN
+from wx.adv import Animation, AnimationCtrl, ANIMATION_TYPE_GIF
 from ObjectListView import ObjectListView, ColumnDefn
 
 NO_ERROR = "NO ERROR"

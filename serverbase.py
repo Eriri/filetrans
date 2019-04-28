@@ -3,7 +3,7 @@ from socketserver import BaseRequestHandler, ThreadingTCPServer, ThreadingUDPSer
 from pyftpdlib.servers import FTPServer
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
-from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from multiprocessing.dummy import Process, Pool
 from struct import pack, unpack
@@ -45,10 +45,9 @@ def run_server_udp(app):
         s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
         s.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        bs = BlockingScheduler()
+        bs = BackgroundScheduler()
         bs.add_job(func=s.sendto, args=("it's me".encode(), ('<broadcast>', app.udp_port),), trigger=IntervalTrigger(seconds=7))
-        p = Process(target=bs.start)
-        p.setDaemon(True), p.start()
+        bs.start()
         return bs
     except Exception as e:
         MessageBox(str(e))
@@ -108,10 +107,9 @@ def run_client_udp(app):
 
 def run_client_verity(app):
     try:
-        bs = BlockingScheduler()
+        bs = BackgroundScheduler()
         bs.add_job(func=verity_packet,args=(app,), trigger=IntervalTrigger(seconds=7))
-        p = Process(target=bs)
-        p.setDaemon(True), p.start()
+        bs.start()
         return bs
     except Exception as e:
         MessageBox(str(e))
@@ -126,6 +124,8 @@ def kick_out(address, port):
 
 def verity_packet(app):
     try:
+        if app.server_address is None:
+            raise Exception("No address")
         with socket() as s:
             s.connect((app.server_address, app.server_tcp_port))
             quick_send(s, [CLIENT_VERITY, {"no": app.no, "name": app.name}])
@@ -143,6 +143,8 @@ def verity_packet(app):
 
 def collect_work(address, port, path, no, prob, lang):
     count = []
+    if address is None:
+        raise Exception("No address")
     try:
         with socket() as s:
             s.connect((address, port))
