@@ -1,42 +1,37 @@
-import wx
-import sys
-from sqlite3 import connect
-from ObjectListView import ObjectListView, ColumnDefn
-from sqlbase import *
-from utilities import *
+from serverbase import *
 
 
-class ProblemDialog(wx.Dialog):
+class ProblemDialog(Dialog):
     def __init__(self, app):
-        wx.Dialog.__init__(self, app, -1, "PD", (0, 0), (500, 300), wx.DEFAULT_FRAME_STYLE, "problem")
-        self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(wx.BOTH)
-        self.P = wx.Panel(self)
-        self.PL, self.PR = wx.Panel(self.P), wx.Panel(self.P)
-        self.B, self.BL, self.BR = wx.BoxSizer(wx.HORIZONTAL), wx.BoxSizer(wx.VERTICAL), wx.BoxSizer(wx.VERTICAL)
+        Dialog.__init__(self, app, -1, "PD", (0, 0), (500, 300), DEFAULT_FRAME_STYLE, "problem")
+        self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(BOTH)
+        self.P = Panel(self)
+        self.PL, self.PR = Panel(self.P), Panel(self.P)
+        self.B, self.BL, self.BR = BoxSizer(HORIZONTAL), BoxSizer(VERTICAL), BoxSizer(VERTICAL)
 
-        self.CB = wx.ComboBox(parent=self.PL, id=-1, value="None", choices=["None"], style=wx.CB_READONLY)
-        self.Bind(wx.EVT_COMBOBOX, self.update, self.CB)
-        self.BL.Add(self.CB, 0, wx.EXPAND | wx.ALL, 5)
+        self.CB = ComboBox(parent=self.PL, id=-1, value="None", choices=["None"], style=CB_READONLY)
+        self.Bind(EVT_COMBOBOX, self.update, self.CB)
+        self.BL.Add(self.CB, 0, EXPAND | ALL, 5)
 
-        self.OLV = ObjectListView(parent=self.PL, sortable=True, id=-1, style=wx.LC_REPORT)
+        self.OLV = ObjectListView(parent=self.PL, sortable=True, id=-1, style=LC_REPORT)
         self.OLV.SetColumns([
             ColumnDefn("测试点", "left", 100, "no"),
             ColumnDefn("输入", "left", 100, "in_path"),
             ColumnDefn("输出", "left", 100, "out_path"),
             ColumnDefn("分数", "left", 100, "point")])
         self.OLV.CreateCheckStateColumn()
-        self.BL.Add(self.OLV, 1, wx.EXPAND | wx.ALL, 5)
+        self.BL.Add(self.OLV, 1, EXPAND | ALL, 5)
 
         self.PL.SetSizer(self.BL)
 
-        BT = [wx.Button(self.PR, 0, "题目编辑"), wx.Button(self.PR, 1, "自动导入测试点"),
-              wx.Button(self.PR, 2, "添加测试点"), wx.Button(self.PR, 3, "删除测试点")]
+        BT = [Button(self.PR, 0, "题目编辑"), Button(self.PR, 1, "自动导入测试点"),
+              Button(self.PR, 2, "添加测试点"), Button(self.PR, 3, "删除测试点")]
         for b in BT:
-            self.BR.Add(b, 1, wx.EXPAND | wx.ALL, 5), self.Bind(wx.EVT_BUTTON, self.add, b)
+            self.BR.Add(b, 1, EXPAND | ALL, 5), self.Bind(EVT_BUTTON, self.add, b)
 
         self.PR.SetSizer(self.BR)
 
-        self.B.Add(self.PL, 1, wx.EXPAND), self.B.Add(self.PR, 0)
+        self.B.Add(self.PL, 1, EXPAND), self.B.Add(self.PR, 0)
         self.P.SetSizer(self.B)
 
         self.fresh()
@@ -47,8 +42,8 @@ class ProblemDialog(wx.Dialog):
                 EditProblem(self).ShowModal()
             if event.GetId() == 1 and self.CB.GetValue() != "None":
                 p = os.path.join(self.GetParent().prob_dir, self.CB.GetValue())
-                md = wx.MessageDialog(self, "确认从目录" + p + "中自动导入测试样点？", style=wx.YES_NO)
-                if md.ShowModal() == wx.ID_YES and os.path.isdir(p):
+                md = MessageDialog(self, "确认从目录" + p + "中自动导入测试样点？", style=YES_NO)
+                if md.ShowModal() == ID_YES and os.path.isdir(p):
                     fl = [x for x in os.listdir(p) if os.path.isfile(os.path.join(p, x))]
                     inl = [x.split(".")[0] for x in fl if len(x.split(".")) == 2 and x.split(".")[1] == "in"]
                     outl = [x.split(".")[0] for x in fl if len(x.split(".")) == 2 and x.split(".")[1] == "out"]
@@ -67,7 +62,7 @@ class ProblemDialog(wx.Dialog):
                     delete(connection, "test", ["no"], [o.no])
                 connection.commit(), connection.close()
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
         self.fresh()
 
     def fresh(self, event=None):
@@ -88,48 +83,48 @@ class ProblemDialog(wx.Dialog):
                 [Test(no, belong, in_path, out_path, point) for no, belong, in_path, out_path, point in test])
 
 
-class EditProblem(wx.Dialog):
+class EditProblem(Dialog):
     def __init__(self, app):
-        wx.Dialog.__init__(self, app, -1, "EP", (0, 0), (550, 120),
-                           wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX), "ep")
-        self.Center(wx.BOTH), self.SetIcon(app.GetParent().GetIcon())
+        Dialog.__init__(self, app, -1, "EP", (0, 0), (550, 120),
+                           DEFAULT_FRAME_STYLE & ~(RESIZE_BORDER | MAXIMIZE_BOX), "ep")
+        self.Center(BOTH), self.SetIcon(app.GetParent().GetIcon())
 
-        self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.VERTICAL)
-        self.PU, self.BU = wx.Panel(self.P), wx.BoxSizer(wx.HORIZONTAL)
-        self.PD, self.BD = wx.Panel(self.P), wx.BoxSizer(wx.HORIZONTAL)
+        self.P, self.B = Panel(self), BoxSizer(VERTICAL)
+        self.PU, self.BU = Panel(self.P), BoxSizer(HORIZONTAL)
+        self.PD, self.BD = Panel(self.P), BoxSizer(HORIZONTAL)
 
-        self.CB = wx.ComboBox(parent=self.PU, id=-1, value="None", choices=["None"], style=wx.CB_READONLY)
-        self.Bind(wx.EVT_COMBOBOX, self.update, self.CB)
-        self.BU.Add(self.CB, 1, wx.EXPAND | wx.ALL, 5)
+        self.CB = ComboBox(parent=self.PU, id=-1, value="None", choices=["None"], style=CB_READONLY)
+        self.Bind(EVT_COMBOBOX, self.update, self.CB)
+        self.BU.Add(self.CB, 1, EXPAND | ALL, 5)
 
-        self.d = wx.Button(self.PU, -1, "删除")
-        self.Bind(wx.EVT_BUTTON, self.delete, self.d)
-        self.BU.Add(self.d, 0, wx.EXPAND | wx.ALL, 5)
+        self.d = Button(self.PU, -1, "删除")
+        self.Bind(EVT_BUTTON, self.delete, self.d)
+        self.BU.Add(self.d, 0, EXPAND | ALL, 5)
 
         self.PU.SetSizer(self.BU)
 
-        self.BD.Add(wx.StaticText(self.PD, -1, "题目名称:"), 1, wx.EXPAND | wx.ALL, 5)
-        self.NO = wx.TextCtrl(self.PD, -1)
+        self.BD.Add(StaticText(self.PD, -1, "题目名称:"), 1, EXPAND | ALL, 5)
+        self.NO = TextCtrl(self.PD, -1)
         self.NO.SetMaxSize((60, 60))
-        self.BD.Add(self.NO, 1, wx.ALL, 5)
+        self.BD.Add(self.NO, 1, ALL, 5)
 
-        self.BD.Add(wx.StaticText(self.PD, -1, "运行时限/秒:"), 1, wx.EXPAND | wx.ALL, 5)
-        self.TIME = wx.TextCtrl(self.PD, -1)
+        self.BD.Add(StaticText(self.PD, -1, "运行时限/秒:"), 1, EXPAND | ALL, 5)
+        self.TIME = TextCtrl(self.PD, -1)
         self.TIME.SetMaxSize((60, 60))
-        self.BD.Add(self.TIME, 1, wx.ALL, 5)
+        self.BD.Add(self.TIME, 1, ALL, 5)
 
-        self.BD.Add(wx.StaticText(self.PD, -1, "内存空间/兆:"), 1, wx.EXPAND | wx.ALL, 5)
-        self.MEMORY = wx.TextCtrl(self.PD, -1)
+        self.BD.Add(StaticText(self.PD, -1, "内存空间/兆:"), 1, EXPAND | ALL, 5)
+        self.MEMORY = TextCtrl(self.PD, -1)
         self.MEMORY.SetMaxSize((60, 60))
-        self.BD.Add(self.MEMORY, 1, wx.ALL, 5)
+        self.BD.Add(self.MEMORY, 1, ALL, 5)
 
-        self.e = wx.Button(self.PD, -1, "编辑/添加")
-        self.Bind(wx.EVT_BUTTON, self.edit, self.e)
-        self.BD.Add(self.e, 1, wx.EXPAND | wx.ALL, 5)
+        self.e = Button(self.PD, -1, "编辑/添加")
+        self.Bind(EVT_BUTTON, self.edit, self.e)
+        self.BD.Add(self.e, 1, EXPAND | ALL, 5)
 
         self.PD.SetSizer(self.BD)
 
-        self.B.Add(self.PU, 1, wx.EXPAND), self.B.Add(self.PD, 1, wx.EXPAND), self.P.SetSizer(self.B)
+        self.B.Add(self.PU, 1, EXPAND), self.B.Add(self.PD, 1, EXPAND), self.P.SetSizer(self.B)
         self.fresh()
 
     def fresh(self, event=None):
@@ -159,7 +154,7 @@ class EditProblem(wx.Dialog):
                 connection.commit(), connection.close()
                 self.fresh()
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
 
     def edit(self, event):
         try:
@@ -172,53 +167,53 @@ class EditProblem(wx.Dialog):
             else:
                 raise Exception("请输入正确参数")
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
 
 
-class EditTest(wx.Dialog):
+class EditTest(Dialog):
     def __init__(self, app, belong):
-        wx.Dialog.__init__(self, app, -1, "ET", (0, 0), (700, 70),
-                           wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX), "et")
+        Dialog.__init__(self, app, -1, "ET", (0, 0), (700, 70),
+                           DEFAULT_FRAME_STYLE & ~(RESIZE_BORDER | MAXIMIZE_BOX), "et")
         self.belong = belong
-        self.Center(wx.BOTH), self.SetIcon(self.GetParent().GetParent().GetIcon())
+        self.Center(BOTH), self.SetIcon(self.GetParent().GetParent().GetIcon())
 
-        self.P = wx.Panel(self)
-        self.B = wx.BoxSizer(wx.HORIZONTAL)
+        self.P = Panel(self)
+        self.B = BoxSizer(HORIZONTAL)
 
-        self.B.Add(wx.StaticText(self.P, -1, "测试点"), 1, wx.EXPAND | wx.ALL, 5)
-        self.NO = wx.TextCtrl(self.P, -1, "")
+        self.B.Add(StaticText(self.P, -1, "测试点"), 1, EXPAND | ALL, 5)
+        self.NO = TextCtrl(self.P, -1, "")
         self.NO.SetMaxSize((80, 70))
-        self.B.Add(self.NO, 1, wx.ALL, 5)
+        self.B.Add(self.NO, 1, ALL, 5)
 
-        self.IB = wx.Button(self.P, 0, "输入路径")
-        self.Bind(wx.EVT_BUTTON, self.select, self.IB)
-        self.B.Add(self.IB, 1, wx.EXPAND | wx.ALL, 5)
-        self.I = wx.TextCtrl(self.P, -1, "")
+        self.IB = Button(self.P, 0, "输入路径")
+        self.Bind(EVT_BUTTON, self.select, self.IB)
+        self.B.Add(self.IB, 1, EXPAND | ALL, 5)
+        self.I = TextCtrl(self.P, -1, "")
         self.I.SetMaxSize((80, 70))
-        self.B.Add(self.I, 1, wx.ALL, 5)
+        self.B.Add(self.I, 1, ALL, 5)
 
-        self.OB = wx.Button(self.P, 1, "输出路径")
-        self.Bind(wx.EVT_BUTTON, self.select, self.OB)
-        self.B.Add(self.OB, 1, wx.EXPAND | wx.ALL, 5)
-        self.O = wx.TextCtrl(self.P, -1, "")
+        self.OB = Button(self.P, 1, "输出路径")
+        self.Bind(EVT_BUTTON, self.select, self.OB)
+        self.B.Add(self.OB, 1, EXPAND | ALL, 5)
+        self.O = TextCtrl(self.P, -1, "")
         self.O.SetMaxSize((80, 70))
-        self.B.Add(self.O, 1, wx.ALL, 5)
+        self.B.Add(self.O, 1, ALL, 5)
 
-        self.B.Add(wx.StaticText(self.P, -1, "分数"), 1, wx.EXPAND | wx.ALL, 5)
-        self.PT = wx.TextCtrl(self.P, -1)
+        self.B.Add(StaticText(self.P, -1, "分数"), 1, EXPAND | ALL, 5)
+        self.PT = TextCtrl(self.P, -1)
         self.PT.SetMaxSize((80, 70))
-        self.B.Add(self.PT, 1, wx.ALL, 5)
+        self.B.Add(self.PT, 1, ALL, 5)
 
-        self.OK = wx.Button(self.P, -1, "添加")
-        self.Bind(wx.EVT_BUTTON, self.click, self.OK)
-        self.B.Add(self.OK, 1, wx.EXPAND | wx.ALL, 5)
+        self.OK = Button(self.P, -1, "添加")
+        self.Bind(EVT_BUTTON, self.click, self.OK)
+        self.B.Add(self.OK, 1, EXPAND | ALL, 5)
 
         self.P.SetSizer(self.B)
 
     def select(self, event):
-        fd = wx.FileDialog(self, "选择文件", sys.path[0])
-        fd.SetIcon(self.GetParent().GetParent().GetIcon()), fd.Center(wx.BOTH)
-        if fd.ShowModal() == wx.ID_OK:
+        fd = FileDialog(self, "选择文件", None)
+        fd.SetIcon(self.GetParent().GetParent().GetIcon()), fd.Center(BOTH)
+        if fd.ShowModal() == ID_OK:
             [self.I, self.O][event.GetId()].SetValue(fd.GetPath())
 
     def click(self, event):
@@ -231,5 +226,5 @@ class EditTest(wx.Dialog):
             else:
                 raise Exception("请输入正确参数")
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
         self.Destroy()

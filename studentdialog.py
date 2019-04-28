@@ -1,34 +1,30 @@
-import wx
-import sqlite3
-from ObjectListView import ObjectListView, ColumnDefn
-from sqlbase import *
-from utilities import *
+from serverbase import *
 from xlrd import open_workbook
 from xlwt import Workbook as xlswb
 from xlsxwriter import Workbook as xlsxwb
 
 
-class StudentDialog(wx.Dialog):
+class StudentDialog(Dialog):
     def __init__(self, app):
-        wx.Dialog.__init__(self, app, -1, "SD", (0, 0), (500, 300), wx.DEFAULT_FRAME_STYLE, "sd")
-        self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(wx.BOTH)
-        self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.HORIZONTAL)
-        self.PR, self.BR = wx.Panel(self.P), wx.BoxSizer(wx.VERTICAL)
+        Dialog.__init__(self, app, -1, "SD", (0, 0), (500, 300), DEFAULT_FRAME_STYLE, "sd")
+        self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(BOTH)
+        self.P, self.B = Panel(self), BoxSizer(HORIZONTAL)
+        self.PR, self.BR = Panel(self.P), BoxSizer(VERTICAL)
         self.SD = set()
 
-        self.OLV = ObjectListView(parent=self.P, sortable=True, style=wx.LC_REPORT)
+        self.OLV = ObjectListView(parent=self.P, sortable=True, style=LC_REPORT)
         self.OLV.SetColumns([
             ColumnDefn("学号", "left", 100, "no"),
             ColumnDefn("姓名", "left", 100, "name")])
         self.OLV.CreateCheckStateColumn()
 
-        B = [wx.Button(self.PR, 0, "添加"), wx.Button(self.PR, 1, "删除"),
-             wx.Button(self.PR, 2, "从Excel添加"), wx.Button(self.PR, 3, "导出到Excel")]
+        B = [Button(self.PR, 0, "添加"), Button(self.PR, 1, "删除"),
+             Button(self.PR, 2, "从Excel添加"), Button(self.PR, 3, "导出到Excel")]
         for b in B:
-            self.BR.Add(b, 0, wx.EXPAND | wx.ALL, 5), self.Bind(wx.EVT_BUTTON, self.button_func, b)
+            self.BR.Add(b, 0, EXPAND | ALL, 5), self.Bind(EVT_BUTTON, self.button_func, b)
         self.PR.SetSizer(self.BR)
 
-        self.B.Add(self.OLV, 1, wx.EXPAND | wx.ALL, 5)
+        self.B.Add(self.OLV, 1, EXPAND | ALL, 5)
         self.B.Add(self.PR, 0)
         self.P.SetSizer(self.B)
 
@@ -40,7 +36,7 @@ class StudentDialog(wx.Dialog):
         connection.close()
         self.OLV.DeleteAllItems()
         for no, name in user:
-            self.OLV.AddObject(Model(no, name))
+            self.OLV.AddObject(Model(no, name, path=self.GetParent().work_dir))
             self.SD.add(no)
 
     def add(self, nos):
@@ -65,21 +61,21 @@ class StudentDialog(wx.Dialog):
             if event.GetId() == 0:
                 AddStudent(self).ShowModal()
             if event.GetId() == 1:
-                md = wx.MessageDialog(self, "确认删除？", style=wx.YES_NO | wx.ICON_QUESTION)
+                md = MessageDialog(self, "确认删除？", style=YES_NO | ICON_QUESTION)
                 md.SetIcon(self.GetParent().GetIcon()), md.SetTitle("删除学生")
-                if md.ShowModal() == wx.ID_YES:
+                if md.ShowModal() == ID_YES:
                     nos = [obj.no for obj in self.OLV.GetCheckedObjects()]
                     delete_user(self.GetParent().database, nos), self.delete(nos)
             if event.GetId() == 2:
-                D = wx.FileDialog(self, "选择Excel文件", wildcard="Excel files (*.xls;*.xls)|*.xls;*xlsx")
-                if D.ShowModal() == wx.ID_OK:
+                D = FileDialog(self, "选择Excel文件", wildcard="Excel files (*.xls;*.xls)|*.xls;*xlsx")
+                if D.ShowModal() == ID_OK:
                     AddStudents(self, D.GetPath()).ShowModal()
             if event.GetId() == 3:
-                md = wx.MultiChoiceDialog(self, "选择导出属性", "导出", ["学号", "姓名", "成绩"])
+                md = MultiChoiceDialog(self, "选择导出属性", "导出", ["学号", "姓名", "成绩"])
                 cte = {0: "no", 1: "name", 2: "point"}
-                if md.ShowModal() == wx.ID_OK:
-                    D = wx.FileDialog(self, "选择Excel文件", wildcard="Excel files (*.xls;*.xls)|*.xls;*xlsx")
-                    if D.ShowModal() == wx.ID_OK:
+                if md.ShowModal() == ID_OK:
+                    D = FileDialog(self, "选择Excel文件", wildcard="Excel files (*.xls;*.xls)|*.xls;*xlsx")
+                    if D.ShowModal() == ID_OK:
                         attribute = [cte[x] for x in md.GetSelections()]
                         connection = connect(self.GetParent().database)
                         path, user = D.GetPath(), select(connection,"user",attribute)
@@ -99,36 +95,36 @@ class StudentDialog(wx.Dialog):
                             workbook.close()
                         else:
                             workbook.save(path)
-                        wx.MessageBox("导出成功")
+                        MessageBox("导出成功")
 
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
 
 
-class AddStudent(wx.Dialog):
+class AddStudent(Dialog):
     def __init__(self, app):
-        wx.Dialog.__init__(self, app, -1, "AD", (0, 0), (400, 70),
-                           wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX), "ad")
-        self.Center(wx.BOTH), self.SetIcon(app.GetParent().GetIcon())
-        self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.HORIZONTAL)
+        Dialog.__init__(self, app, -1, "AD", (0, 0), (400, 70),
+                           DEFAULT_FRAME_STYLE & ~(RESIZE_BORDER | MAXIMIZE_BOX), "ad")
+        self.Center(BOTH), self.SetIcon(app.GetParent().GetIcon())
+        self.P, self.B = Panel(self), BoxSizer(HORIZONTAL)
 
-        self.B.Add(wx.StaticText(self.P, -1, "学号"), 1, wx.EXPAND | wx.ALL, 5)
-        self.NO = wx.TextCtrl(self.P, -1)
-        self.B.Add(self.NO, 1, wx.EXPAND | wx.ALL, 5)
+        self.B.Add(StaticText(self.P, -1, "学号"), 1, EXPAND | ALL, 5)
+        self.NO = TextCtrl(self.P, -1)
+        self.B.Add(self.NO, 1, EXPAND | ALL, 5)
 
-        self.B.Add(wx.StaticText(self.P, -1, "姓名"), 1, wx.EXPAND | wx.ALL, 5)
-        self.NAME = wx.TextCtrl(self.P, -1)
-        self.B.Add(self.NAME, 1, wx.EXPAND | wx.ALL, 5)
+        self.B.Add(StaticText(self.P, -1, "姓名"), 1, EXPAND | ALL, 5)
+        self.NAME = TextCtrl(self.P, -1)
+        self.B.Add(self.NAME, 1, EXPAND | ALL, 5)
 
-        self.OK = wx.Button(self.P, -1, "确定")
-        self.Bind(wx.EVT_BUTTON, self.click, self.OK)
-        self.B.Add(self.OK, 1, wx.EXPAND | wx.ALL, 5)
+        self.OK = Button(self.P, -1, "确定")
+        self.Bind(EVT_BUTTON, self.click, self.OK)
+        self.B.Add(self.OK, 1, EXPAND | ALL, 5)
 
         self.P.SetSizer(self.B)
 
     def click(self, event):
         if self.NO.GetValue() == "" or self.NAME.GetValue() == "":
-            wx.MessageBox("请正确输入")
+            MessageBox("请正确输入")
             return
 
         import_user(self.GetParent().GetParent().database, self.NO.GetValue(), self.NAME.GetValue())
@@ -136,28 +132,28 @@ class AddStudent(wx.Dialog):
         self.Destroy()
 
 
-class AddStudents(wx.Dialog):
+class AddStudents(Dialog):
     def __init__(self, app, path):
-        wx.Dialog.__init__(self, app, -1, "ADS", (0, 0), (450, 75),
-                           wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX), "ads")
-        self.Center(wx.BOTH), self.SetIcon(app.GetParent().GetIcon())
-        self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.HORIZONTAL)
+        Dialog.__init__(self, app, -1, "ADS", (0, 0), (450, 75),
+                           DEFAULT_FRAME_STYLE & ~(RESIZE_BORDER | MAXIMIZE_BOX), "ads")
+        self.Center(BOTH), self.SetIcon(app.GetParent().GetIcon())
+        self.P, self.B = Panel(self), BoxSizer(HORIZONTAL)
 
         self.sheet = open_workbook(path).sheets()[0]
         self.attribute = self.sheet.row_values(0)
         self.attribute.append("None")
 
-        self.B.Add(wx.StaticText(self.P, -1, "选择学号列名"), 1, wx.EXPAND | wx.ALL, 5)
-        self.NO = wx.ComboBox(self.P, -1, value="None", choices=self.attribute, style=wx.CB_READONLY)
-        self.B.Add(self.NO, 1, wx.EXPAND | wx.ALL, 5)
+        self.B.Add(StaticText(self.P, -1, "选择学号列名"), 1, EXPAND | ALL, 5)
+        self.NO = ComboBox(self.P, -1, value="None", choices=self.attribute, style=CB_READONLY)
+        self.B.Add(self.NO, 1, EXPAND | ALL, 5)
 
-        self.B.Add(wx.StaticText(self.P, -1, "选择姓名列名"), 1, wx.EXPAND | wx.ALL, 5)
-        self.NAME = wx.ComboBox(self.P, -1, value="None", choices=self.attribute, style=wx.CB_READONLY)
-        self.B.Add(self.NAME, 1, wx.EXPAND | wx.ALL, 5)
+        self.B.Add(StaticText(self.P, -1, "选择姓名列名"), 1, EXPAND | ALL, 5)
+        self.NAME = ComboBox(self.P, -1, value="None", choices=self.attribute, style=CB_READONLY)
+        self.B.Add(self.NAME, 1, EXPAND | ALL, 5)
 
-        self.OK = wx.Button(self.P, -1, "导入")
-        self.Bind(wx.EVT_BUTTON, self.click, self.OK)
-        self.B.Add(self.OK, 1, wx.EXPAND | wx.ALL, 5)
+        self.OK = Button(self.P, -1, "导入")
+        self.Bind(EVT_BUTTON, self.click, self.OK)
+        self.B.Add(self.OK, 1, EXPAND | ALL, 5)
 
         self.P.SetSizer(self.B)
 
@@ -171,4 +167,4 @@ class AddStudents(wx.Dialog):
             connection.commit(), connection.close()
             self.GetParent().add(nos), self.Destroy()
         else:
-            wx.MessageBox("请选择属性列名"), self.Destroy()
+            MessageBox("请选择属性列名"), self.Destroy()

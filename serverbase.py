@@ -4,13 +4,13 @@ from pyftpdlib.servers import FTPServer
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
 from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 from multiprocessing.dummy import Process, Pool
-from sqlite3 import connect
 from struct import pack, unpack
-from sqlbase import select, select_one, update
 from itertools import chain
+
+from sqlbase import *
 from utilities import *
-from wx import MessageBox
 
 
 def run_server_tcp(app):
@@ -46,7 +46,7 @@ def run_server_udp(app):
         s.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         bs = BlockingScheduler()
-        bs.add_job(func=s.sendto, args=("it's me".encode(), ('<broadcast>', app.udp_port),), trigger='interval', seconds=7)
+        bs.add_job(func=s.sendto, args=("it's me".encode(), ('<broadcast>', app.udp_port),), trigger=IntervalTrigger(seconds=7))
         p = Process(target=bs.start)
         p.setDaemon(True), p.start()
         return bs
@@ -109,7 +109,7 @@ def run_client_udp(app):
 def run_client_verity(app):
     try:
         bs = BlockingScheduler()
-        bs.add_job(func=verity_packet,args=(app,),trigger='interval', seconds=7)
+        bs.add_job(func=verity_packet,args=(app,), trigger=IntervalTrigger(seconds=7))
         p = Process(target=bs)
         p.setDaemon(True), p.start()
         return bs
@@ -148,7 +148,7 @@ def collect_work(address, port, path, no, prob, lang):
             s.connect((address, port))
             quick_send(s, [CLIENT_COLLECT_WORK, prob, lang])
             info, count, error = quick_recv_file(s, os.path.join(path, no))
-            return no, cout, [COLLECT_WORK_FAILED, COLLECT_WORK_SUCCEED][info == RECV_FILE_SUCCEED], error
+            return no, count, [COLLECT_WORK_FAILED, COLLECT_WORK_SUCCEED][info == RECV_FILE_SUCCEED], error
     except Exception as e:
         print(str(e))
         return no, COLLECT_WORK_FAILED, count, 

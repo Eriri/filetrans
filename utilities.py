@@ -1,5 +1,15 @@
 import os
-import time
+from wx import EVT_BUTTON, EVT_MENU, EVT_COMBOBOX
+from wx import HORIZONTAL, VERTICAL, EXPAND, ALL, BOTH, GA_VERTICAL
+from wx import ID_OK, ID_YES, YES_NO, ICON_QUESTION, ID_ABORT
+from wx import BITMAP_TYPE_ICO
+from wx import DEFAULT_FRAME_STYLE, LC_REPORT, RESIZE_BORDER, MAXIMIZE_BOX, CB_READONLY, FD_DEFAULT_STYLE, FD_MULTIPLE
+from wx import Frame, Dialog, Icon, MenuBar, Menu, Panel, BoxSizer, Button, Gauge
+from wx import DirDialog,  TextEntryDialog, MultiChoiceDialog, MessageDialog, FileDialog
+from wx import MessageBox, ComboBox
+from wx import TextCtrl, StaticText
+from wx import App, SingleInstanceChecker, GetUserId
+from ObjectListView import ObjectListView, ColumnDefn
 
 NO_ERROR = "NO ERROR"
 
@@ -68,7 +78,7 @@ class Model(object):
     def __init__(self, no, name=None, prob=None, ip=None, point=None, path=None, lang=None):
         self.no = no
         self.name = name
-        self.prob = " ".join([x+["🗷", "🗹"][has(os.path.join(path,no), x, lang)] for x in prob]) if prob is not None else ""
+        self.prob = " ".join([x+["☐", "☑"][has(os.path.join(path,no), x, lang)] for x in prob]) if prob is not None else ""
         self.ip = ip
         self.point = point
         self.path = os.path.join(path, no)
@@ -80,7 +90,7 @@ class Model(object):
         return hash(self.no)
 
     def fresh_prob(self, prob, lang):
-        self.prob = " ".join([x+["🗷", "🗹"][has(self.path, x, lang)] for x in prob])
+        self.prob = " ".join([x+["☐", "☑"][has(self.path, x, lang)] for x in prob])
 
 
 class Test(object):

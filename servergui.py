@@ -1,10 +1,5 @@
-import sys
-import wx
-from sqlite3 import connect
 from serverbase import *
-from sqlbase import *
-from ObjectListView import ObjectListView, ColumnDefn
-from utilities import *
+
 from studentdialog import StudentDialog
 from problemdialog import ProblemDialog
 from workdialog import WorkDialog
@@ -12,38 +7,38 @@ from senddialog import SendDialog
 from ftpdialog import FtpDialog
 
 
-class MainFrame(wx.Frame):
+class MainFrame(Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, -1, "FT", (0, 0), (600, 400), wx.DEFAULT_FRAME_STYLE, "ft")
-        self.path, self.database, self.work_dir, self.prob_dir = sys.path[0], None, None, None
+        Frame.__init__(self, None, -1, "FT", (0, 0), (600, 400), DEFAULT_FRAME_STYLE, "ft")
+        self.path, self.database, self.work_dir, self.prob_dir = None, None, None, None
         self.server_tcp_port, self.client_tcp_port, self.tcp_server = DEFAULT_SERVER_TCP_PORT, DEFAULT_CLIENT_TCP_PORT, None
         self.udp_port, self.udp_server = DEFAULT_UDP_PORT, None
-        self.ftp_path, self.ftp_port, self.ftp_server = sys.path[0], DEFAULT_FTP_PORT, None
+        self.ftp_path, self.ftp_port, self.ftp_server = "", DEFAULT_FTP_PORT, None
         self.prob, self.lang = [], LANGUAGE_CONFIG
         self.status = PROJECT_STATUS_OFF
         self.SD = set()
 
-        self.icon = wx.Icon("favicon.ico", wx.BITMAP_TYPE_ICO)
-        self.SetIcon(self.icon), self.Center(wx.BOTH), self.SetMinSize((600, 400))
+        self.icon = Icon("favicon.ico", BITMAP_TYPE_ICO)
+        self.SetIcon(self.icon), self.Center(BOTH), self.SetMinSize((600, 400))
 
-        MB, ME, ELSE = wx.MenuBar(), wx.Menu(), wx.Menu()
+        MB, ME, ELSE = MenuBar(), Menu(), Menu()
         MB.Append(ME, "工作区"), MB.Append(ELSE, "其他选项"), self.SetMenuBar(MB)
 
-        self.Bind(wx.EVT_MENU, self.open, ME.Append(-1, "打开工作区..."))
-        self.Bind(wx.EVT_MENU, self.close, ME.Append(-1, "关闭当前工作区"))
-        self.Bind(wx.EVT_MENU, self.destroy, ME.Append(-1, "退出"))
-        self.Bind(wx.EVT_MENU, self.select_server_tcp_port, ELSE.Append(-1, "选择服务器TCP端口"))
-        self.Bind(wx.EVT_MENU, self.select_client_tcp_port, ELSE.Append(-1, "选择客户端TCP端口"))
-        self.Bind(wx.EVT_MENU, self.select_udp_port, ELSE.Append(-1, "选择UDP广播端口"))
-        self.Bind(wx.EVT_MENU, self.start_ftp_server, ELSE.Append(-1, "开启FTP服务器"))
-        self.Bind(wx.EVT_MENU, self.close_ftp_server, ELSE.Append(-1, "关闭FTP服务器"))
-        self.Bind(wx.EVT_MENU, self.select_extension, ELSE.Append(-1, "程序扩展名设置"))
-        self.Bind(wx.EVT_MENU, self.about, ELSE.Append(-1, "关于/帮助"))
+        self.Bind(EVT_MENU, self.open, ME.Append(-1, "打开工作区..."))
+        self.Bind(EVT_MENU, self.close, ME.Append(-1, "关闭当前工作区"))
+        self.Bind(EVT_MENU, self.destroy, ME.Append(-1, "退出"))
+        self.Bind(EVT_MENU, self.select_server_tcp_port, ELSE.Append(-1, "选择服务器TCP端口"))
+        self.Bind(EVT_MENU, self.select_client_tcp_port, ELSE.Append(-1, "选择客户端TCP端口"))
+        self.Bind(EVT_MENU, self.select_udp_port, ELSE.Append(-1, "选择UDP广播端口"))
+        self.Bind(EVT_MENU, self.start_ftp_server, ELSE.Append(-1, "开启FTP服务器"))
+        self.Bind(EVT_MENU, self.close_ftp_server, ELSE.Append(-1, "关闭FTP服务器"))
+        self.Bind(EVT_MENU, self.select_extension, ELSE.Append(-1, "程序扩展名设置"))
+        self.Bind(EVT_MENU, self.about, ELSE.Append(-1, "关于/帮助"))
 
-        self.P, self.B = wx.Panel(self), wx.BoxSizer(wx.HORIZONTAL)
-        self.PR, self.BR = wx.Panel(self.P), wx.BoxSizer(wx.VERTICAL)
+        self.P, self.B = Panel(self), BoxSizer(HORIZONTAL)
+        self.PR, self.BR = Panel(self.P), BoxSizer(VERTICAL)
 
-        self.OLV = ObjectListView(parent=self.P, sortable=True, style=wx.LC_REPORT)
+        self.OLV = ObjectListView(parent=self.P, sortable=True, style=LC_REPORT)
         self.OLV.SetColumns([
             ColumnDefn("学号", "left", 100, "no"),
             ColumnDefn("姓名", "left", 100, "name"),
@@ -51,13 +46,13 @@ class MainFrame(wx.Frame):
             ColumnDefn("IP地址", "left", 175, "ip"),
             ColumnDefn("最终成绩", "left", 100, "point")])
 
-        B = [wx.Button(self.PR, 0, "学生管理"), wx.Button(self.PR, 1, "题目管理"),
-             wx.Button(self.PR, 2, "接收作业"), wx.Button(self.PR, 3, "发送文件"),
-             wx.Button(self.PR, 4, "系统评测")]
+        B = [Button(self.PR, 0, "学生管理"), Button(self.PR, 1, "题目管理"),
+             Button(self.PR, 2, "接收作业"), Button(self.PR, 3, "发送文件"),
+             Button(self.PR, 4, "系统评测")]
         for b in B:
-            self.BR.Add(b, 0, wx.EXPAND | wx.ALL, 5), self.Bind(wx.EVT_BUTTON, self.button_func, b)
+            self.BR.Add(b, 0, EXPAND | ALL, 5), self.Bind(EVT_BUTTON, self.button_func, b)
         self.PR.SetSizer(self.BR)
-        self.B.Add(self.OLV, 1, wx.EXPAND | wx.ALL, 5)
+        self.B.Add(self.OLV, 1, EXPAND | ALL, 5)
         self.B.Add(self.PR, 0)
         self.P.SetSizer(self.B)
 
@@ -66,8 +61,8 @@ class MainFrame(wx.Frame):
 
     def open(self, event=None):
         try:
-            dd = wx.DirDialog(self, "选择工作区文件夹", self.path)
-            if dd.ShowModal() == wx.ID_OK:
+            dd = DirDialog(self, "选择工作区文件夹")
+            if dd.ShowModal() == ID_OK:
                 self.close()
                 self.path, self.database = dd.GetPath(), initiate(dd.GetPath())
                 self.tcp_server, self.udp_server = run_server_tcp(self), run_server_udp(self)
@@ -80,7 +75,7 @@ class MainFrame(wx.Frame):
                 self.status = PROJECT_STATUS_ON
                 self.init_all()
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
 
     def close(self, event=None):
         try:
@@ -94,12 +89,12 @@ class MainFrame(wx.Frame):
                 self.OLV.DeleteAllItems(), self.PR.Disable(), self.SD.clear()
                 self.status = PROJECT_STATUS_OFF
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
 
     def select_server_tcp_port(self, event):
         try:
-            ted = wx.TextEntryDialog(self, "监听端口（0~65535）", "选择服务器端口", str(self.server_tcp_port))
-            if ted.ShowModal() == wx.ID_OK:
+            ted = TextEntryDialog(self, "监听端口（0~65535）", "选择服务器端口", str(self.server_tcp_port))
+            if ted.ShowModal() == ID_OK:
                 port = ted.GetValue()
                 if int(port) >= 65536 or int(port) <= 0:
                     raise Exception("请输入正确端口")
@@ -108,23 +103,23 @@ class MainFrame(wx.Frame):
                     self.tcp_server.shutdown(), self.tcp_server.server_close()
                     self.tcp_server = run_server_tcp(self)
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
 
     def select_client_tcp_port(self, event):
         try:
-            ted = wx.TextEntryDialog(self, "监听端口（0~65535）", "选择客户端端口", str(self.client_tcp_port))
-            if ted.ShowModal() == wx.ID_OK:
+            ted = TextEntryDialog(self, "监听端口（0~65535）", "选择客户端端口", str(self.client_tcp_port))
+            if ted.ShowModal() == ID_OK:
                 port = ted.GetValue()
                 if int(port) >= 65536 or int(port) <= 0:
                     raise Exception("请输入正确端口")
                 self.client_tcp_port = int(port)
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
 
     def select_udp_port(self, event):
         try:
-            ted = wx.TextEntryDialog(self, "广播端口（0~65535）", "选择UDP广播端口", str(self.udp_port))
-            if ted.ShowModal() == wx.ID_OK:
+            ted = TextEntryDialog(self, "广播端口（0~65535）", "选择UDP广播端口", str(self.udp_port))
+            if ted.ShowModal() == ID_OK:
                 port = ted.GetValue()
                 if int(port) >= 65536 or int(port) <= 0:
                     raise Exception("请输入正确端口")
@@ -133,11 +128,11 @@ class MainFrame(wx.Frame):
                     self.udp_server.shutdown()
                     self.udp_server = run_server_udp(self)
         except Exception as e:
-            wx.MessageBox(str(e))
+            MessageBox(str(e))
 
     def start_ftp_server(self, event=None):
         self.close_ftp_server()
-        if FtpDialog(self, self.icon).ShowModal() == wx.ID_OK:
+        if FtpDialog(self).ShowModal() == ID_OK:
             self.ftp_server = run_server_ftp(self)
 
     def close_ftp_server(self, event=None):
@@ -146,15 +141,15 @@ class MainFrame(wx.Frame):
             self.ftp_server = None
 
     def select_extension(self, event=None):
-        md = wx.MultiChoiceDialog(self,"选择允许的程序类型","确认",LANGUAGE_CONFIG)
+        md = MultiChoiceDialog(self,"选择允许的程序类型","确认",LANGUAGE_CONFIG)
         md.SetIcon(self.GetIcon()), md.SetSelections([LANGUAGE_CONFIG.index(x) for x in self.lang])
-        if md.ShowModal() == wx.ID_OK:
+        if md.ShowModal() == ID_OK:
             self.lang = [LANGUAGE_CONFIG[x] for x in md.GetSelections()]
             if self.status == PROJECT_STATUS_ON:
                 self.fresh_prob()
 
     def about(self, event):
-        msg = wx.MessageBox("这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符")
+        msg = MessageBox("这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符")
 
     def init_all(self, event=None):
         connection = connect(self.database)
@@ -182,7 +177,7 @@ class MainFrame(wx.Frame):
         connection = connect(self.database)
         for no in nos:
             name, ip, point = select_one(connection, "user", ["name", "ip", "point"], ["no"], [no])
-            obj = Model(no, name, self.prob, ip, point, self.path)
+            obj = Model(no, name, self.prob, ip, point, self.work_dir)
             if no in self.SD:
                 self.OLV.RefreshObject(obj)
             else:
@@ -210,17 +205,17 @@ class MainFrame(wx.Frame):
                 #JudgeDialog(self).ShowModel, self.fresh_point()
 
 
-class MainApp(wx.App):
+class MainApp(App):
     def __init__(self):
-        wx.App.__init__(self)
+        App.__init__(self)
         self.frame = MainFrame()
         self.frame.Show()
         self.SetTopWindow(self.frame)
 
     def OnInit(self):
-        self._check = wx.SingleInstanceChecker(wx.GetUserId())
+        self._check = SingleInstanceChecker(GetUserId())
         if self._check.IsAnotherRunning():
-            wx.MessageBox("已经运行")
+            MessageBox("已经运行")
             return False
         return True
 
