@@ -29,6 +29,7 @@ class MainFrame(Frame):
         self.udp_server, self.verity_server = run_client_udp(self), run_client_verity(self)
         self.status, self.network_status = PROJECT_STATUS_OFF, CLIENT_SEARCH_SERVER
 
+        os.chdir(getattr(sys, '_MEIPASS', os.getcwd()))
         self.icon = Icon("favicon.ico", BITMAP_TYPE_ICO)
         self.taskbaricon = MyTaskBarIcon(self)
         self.SetIcon(self.icon), self.Center(BOTH)
@@ -199,7 +200,7 @@ class MainFrame(Frame):
         self.Iconize(True), self.Show(False)
 
     def about(self,event):
-        MessageBox("这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符")
+        MessageBox("这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符\n请尽可能保证收发文件时文件处于关闭状态")
 
     def destroy(self, event):
         self.Destroy(), self.taskbaricon.Destroy()

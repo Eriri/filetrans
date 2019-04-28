@@ -17,8 +17,8 @@ class MainFrame(Frame):
         self.prob, self.lang = [], LANGUAGE_CONFIG
         self.status = PROJECT_STATUS_OFF
         self.SD = set()
-
-        self.icon = Icon("favicon.ico", BITMAP_TYPE_ICO)
+        os.chdir(getattr(sys, '_MEIPASS', os.getcwd()))
+        self.icon = Icon(os.path.join(os.path.abspath("."),"favicon.ico"), BITMAP_TYPE_ICO)
         self.SetIcon(self.icon), self.Center(BOTH), self.SetMinSize((600, 400))
 
         MB, ME, ELSE = MenuBar(), Menu(), Menu()
@@ -149,7 +149,7 @@ class MainFrame(Frame):
                 self.fresh_prob()
 
     def about(self, event):
-        msg = MessageBox("这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符")
+        msg = MessageBox("这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符\n请尽可能保证收发文件时文件处于关闭状态")
 
     def init_all(self, event=None):
         connection = connect(self.database)
