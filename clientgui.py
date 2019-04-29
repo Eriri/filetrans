@@ -23,7 +23,7 @@ class MyTaskBarIcon(TaskBarIcon):
 
 class MainFrame(Frame):
     def __init__(self):
-        Frame.__init__(self, None, -1, "FTClient", (0, 0), (450, 150), DEFAULT_FRAME_STYLE, "c")
+        Frame.__init__(self, None, -1, "FTClient", (0, 0), (450, 130), DEFAULT_FRAME_STYLE, "c")
         self.path, self.prob, self.lang, self.no, self.name = None, [], [], None, None
         self.tcp_server, self.client_tcp_port = None, DEFAULT_CLIENT_TCP_PORT
         self.server_address, self.server_tcp_port = None, DEFAULT_SERVER_TCP_PORT
@@ -97,13 +97,13 @@ class MainFrame(Frame):
         if message is not None:
             MessageBox(message)
         if self.tcp_server is not None:
-            self.tcp_server.shutdown(), self.tcp_server.close()
+            self.tcp_server.shutdown(), self.tcp_server.server_close()
         self.status, self.tcp_server = PROJECT_STATUS_OFF, None
         self.path, self.no, self.name, self.prob, self.lang = None, None, None, [], []
         self.fresh_server_info(self.network_status)
         self.PAL.Show(False), self.FE.Show(False), self.PL.Show(True), self.PR.Show(True)
         self.B.Clear(), self.B.Add(self.PL, 1, EXPAND), self.B.Add(self.PR, 0, EXPAND)
-        self.SetSize(450, 150), self.Show(True)
+        self.SetSize(450, 130), self.Show(True)
 
     def fresh_prob_lang(self, prob=None, lang=None):
         if prob is not None and lang is not None:
@@ -188,6 +188,9 @@ class MainFrame(Frame):
         MessageBox("这是一个尚未完成的程序\n请尽可能保证各种路径中不含特殊标点字符\n请尽可能保证收发文件时文件处于关闭状态")
 
     def destroy(self, event):
+        self.close()
+        self.udp_server.shutdown(), self.udp_server.server_close()
+        self.verity_server.shutdown()
         self.Destroy(), self.taskbaricon.Destroy()
 
 

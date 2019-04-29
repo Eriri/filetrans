@@ -40,7 +40,7 @@ class WorkDialog(Dialog):
         connection.close()
         self.OLV.DeleteAllItems(), self.OLV.AddObjects(user)
 
-    def update(self, no, count, info, error=None):
+    def update(self, no, count, info, error):
         obj = self.OLV.GetObjectAt(self.OLV.GetIndexOf(SR(no)))
         if info == COLLECT_WORK_SUCCEED:
             obj.fresh_info("成功接收作业，共包括", count)

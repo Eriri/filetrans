@@ -54,7 +54,7 @@ class MainFrame(Frame):
         self.PR.SetSizer(self.BR)
         self.B.Add(self.OLV, 1, EXPAND | ALL, 5)
         self.B.Add(self.PR, 0)
-        self.P.SetSizer(self.B)
+        self.P.SetSizer(self.B),self.PR.Disable()
 
     def destroy(self, event):
         self.close(), self.Destroy()
@@ -73,7 +73,7 @@ class MainFrame(Frame):
                 self.work_dir = os.path.join(self.path, DEFAULT_WORK_DIR)
                 self.prob_dir = os.path.join(self.path, DEFAULT_PROBLEM_DIR)
                 self.status = PROJECT_STATUS_ON
-                self.init_all()
+                self.init_all(), self.PR.Enable()
         except Exception as e:
             MessageBox(str(e))
 

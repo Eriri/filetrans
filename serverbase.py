@@ -19,7 +19,7 @@ def run_server_tcp(app):
             info = quick_recv(self.request)
             if info == CLIENT_ONLINE_CHECK:
                 quick_send(self.request, [app.prob, app.lang])
-            else:
+            elif info == CLIENT_VERITY:
                 packet, connection = eval(quick_recv(self.request)), connect(app.database)
                 name = select_one(connection, "user", ["name"], ["no"], [packet["no"]])
                 if name is None or name[0] != packet["name"]:
@@ -30,6 +30,7 @@ def run_server_tcp(app):
                         Process(target=kick_out, args=(ip, app.client_tcp_port,)).start()
                     update(connection, "user", ["ip"], [self.client_address[0]], ["no"], [packet["no"]])
                     connection.commit(), connection.close(), app.update([packet["no"]])
+                    quick_send(self.request, [CLIENT_VERITY_SUCCEED])
 
 
     try:
@@ -47,7 +48,7 @@ def run_server_udp(app):
         s.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         bs = BackgroundScheduler()
-        bs.add_job(func=s.sendto, args=("it's me".encode(), ('<broadcast>', app.udp_port),), trigger=IntervalTrigger(seconds=7))
+        bs.add_job(func=s.sendto, args=("it's me".encode(), ('<broadcast>', app.udp_port),), trigger=IntervalTrigger(seconds=3))
         bs.start()
         return bs
     except Exception as e:
@@ -71,10 +72,15 @@ def run_client_tcp(app):
     class Handler(BaseRequestHandler):
         def handle(self):
             info = quick_recv(self.request)
-            if info == CLIENT_VERITY_FAILED:
-                app.close("已被服务器踢出")
+            print(info)
+            if info == CLIENT_KICK_OUT:
+                app.status = PROJECT_STATUS_OFF
             elif info == CLIENT_COLLECT_WORK:
-                prob, lang = eval(quick_recv(self.request)), eval(quick_recv(self.request))
+                no, prob, lang = quick_recv(self.request), eval(quick_recv(self.request)), eval(quick_recv(self.request))
+                if app.no != no:
+                    quick_send(self.request, [CLIENT_VERITY_FAILED])
+                    return
+                quick_send(self.request, [CLIENT_VERITY_SUCCEED])
                 cand = list(chain.from_iterable([[no + su for su in lang] for no in prob]))
                 for name in cand:
                     if os.path.isfile(os.path.join(app.path, name)):
@@ -86,6 +92,11 @@ def run_client_tcp(app):
                 quick_send(self.request, [SEND_FILE_OVER])
                 app.show_info("已成功发送作业", quick_recv(self.request))
             elif info == CLIENT_RECV_FILE:
+                no = quick_recv(self.request)
+                if app.no != no:
+                    quick_send(self.request, [CLIENT_VERITY_FAILED])
+                    return
+                quick_send(self.request, [CLIENT_VERITY_SUCCEED])
                 info, count, error = quick_recv_file(self.request, app.path)
                 if info == RECV_FILE_SUCCEED:
                     app.show_info("已成功接收文件", count)
@@ -119,7 +130,8 @@ def run_client_udp(app):
 def run_client_verity(app):
     try:
         bs = BackgroundScheduler()
-        bs.add_job(func=verity_server, args=(app,), trigger=IntervalTrigger(seconds=7))
+        bs.add_job(func=verity_server, args=(app,), trigger=IntervalTrigger(seconds=3))
+        bs.add_job(func=verity_client, args=(app,), trigger=IntervalTrigger(seconds=3))
         bs.start()
         return bs
     except Exception as e:
@@ -128,36 +140,43 @@ def run_client_verity(app):
 
 def kick_out(address, port):
     try:
-        with socket() as s:
-            s.connect((address, port)), quick_send(s, [CLIENT_KICK_OUT])
+        s = socket()
+        s.settimeout(1.5), s.connect((address, port))
+        quick_send(s, [CLIENT_KICK_OUT])
     except Exception as e:
         print(str(e))
-
+    finally:
+        s.close()
 
 def verity_server(app):
     try:
         s = socket()
-        s.settimeout(1)
-        s.connect((app.server_address, app.server_tcp_port))
+        s.settimeout(1.5), s.connect((app.server_address, app.server_tcp_port))
         quick_send(s, [CLIENT_ONLINE_CHECK])
         app.fresh_prob_lang(eval(quick_recv(s)), eval(quick_recv(s)))
         info = CLIENT_DISCOVER_SERVER
     except Exception as e:
         print(str(e))
         info = CLIENT_SEARCH_SERVER
+    finally:
+        s.close()
     app.fresh_server_info(info)
 
+def verity_client(app):
+    if app.tcp_server is not None and app.status == PROJECT_STATUS_OFF:
+        app.close("已被服务器踢出")
 
 def verity_user(app):
     try:
         s = socket()
-        s.settimeout(1)
-        s.connect((app.server_address, app.server_tcp_port))
+        s.settimeout(1.5), s.connect((app.server_address, app.server_tcp_port))
         quick_send(s, [CLIENT_VERITY,{"no":app.no, "name":app.name}])
         info = quick_recv(s)
     except Exception as e:
         print(str(e))
         info = CLIENT_SEARCH_SERVER
+    finally:
+        s.close()
     return info
 
 
@@ -165,16 +184,19 @@ def collect_work(address, port, path, no, prob, lang):
     count = []
     try:
         s = socket()
-        s.settimeout(1)
         s.connect((address, port))
-        quick_send(s, [CLIENT_COLLECT_WORK, prob, lang])
+        quick_send(s, [CLIENT_COLLECT_WORK, no, prob, lang])
+        if quick_recv(s) != CLIENT_VERITY_SUCCEED:
+            raise Exception("wrong user")
         info, count, error = quick_recv_file(s, os.path.join(path, no))
         quick_send(s, [count])
-        s.close()
-        return no, count, [COLLECT_WORK_FAILED, COLLECT_WORK_SUCCEED][info == RECV_FILE_SUCCEED], error
     except Exception as e:
+        error = e
         print(str(e))
-        return no, COLLECT_WORK_FAILED, count,
+        s.close()
+    finally:
+        s.close()
+    return no, count, [COLLECT_WORK_FAILED, COLLECT_WORK_SUCCEED][info == RECV_FILE_SUCCEED], str(error)
 
 
 def collect_works(app, dialog, aop):
@@ -186,29 +208,32 @@ def collect_works(app, dialog, aop):
         for no, ip in user:
             pool.apply_async(func=collect_work,
                              args=(ip, app.client_tcp_port, app.work_dir, no, app.prob, app.lang,),
-                             callback=lambda ic: dialog.update(ic[0], ic[1], ic[2]))
+                             callback=lambda ic: dialog.update(ic[0], ic[1], ic[2], ic[3]))
         pool.close()
     except Exception as e:
         MessageBox(str(e))
 
 
 def send_file(address, port, path, no):
-    count = []
+    count, info, error = [], SEND_FILE_SUCCEED, NO_ERROR
     try:
         s = socket()
-        s.settimeout(1)
         s.connect((address, port))
-        quick_send(s, [CLIENT_RECV_FILE])
+        quick_send(s, [CLIENT_RECV_FILE, no])
+        if quick_recv(s) != CLIENT_VERITY_SUCCEED:
+            raise Exception("wrong user")
         for p in path:
             with open(p, "rb") as f:
                 data = f.read()
                 quick_send(s, [SEND_FILE_NOW, os.path.basename(p)])
                 s.sendall(pack("Q", len(data))), s.sendall(data)
                 count.append(os.path.basename(p))
-            quick_send(s, [SEND_FILE_OVER])
-        return no, count, SEND_FILE_SUCCEED, NO_ERROR,
+        quick_send(s, [SEND_FILE_OVER])
     except Exception as e:
-        return no, count, SEND_FILE_FAILED, str(e)
+        info, error = SEND_FILE_FAILED, e
+    finally:
+        s.close()
+    return no, count, info, str(error)
 
 
 def send_files(app, dialog, aop):
@@ -221,7 +246,7 @@ def send_files(app, dialog, aop):
         for no, ip in user:
             pool.apply_async(func=send_file,
                              args=(ip, app.client_tcp_port, path, no),
-                             callback=lambda ic: dialog.update(ic[0], ic[1], ic[2]))
+                             callback=lambda ic: dialog.update(ic[0], ic[1], ic[2], ic[3]))
         pool.close()
     except Exception as e:
         MessageBox(str(e))
@@ -232,9 +257,17 @@ def quick_send(s, d):
         i = str(i).encode()
         s.sendall(pack("Q", len(i))), s.sendall(i)
 
+def recv_exactly(s, n):
+    m, d = 0, b''
+    while m < n:
+        t = s.recv(min(n-m,8192))
+        m += len(t)
+        d += t
+    return d
+
 
 def quick_recv(s):
-    return s.recv(unpack("Q", s.recv(8))[0]).decode()
+    return recv_exactly(s, unpack("Q", recv_exactly(s, 8))[0]).decode()
 
 
 def quick_recv_file(s, p):
@@ -243,12 +276,12 @@ def quick_recv_file(s, p):
         if not os.path.isdir(p):
             os.mkdir(p)
         while quick_recv(s) != SEND_FILE_OVER:
-            name, fs, rs = quick_recv(s), unpack("Q", s.recv(8))[0], 0
+            name = quick_recv(s)
             with open(os.path.join(p, name), "wb") as f:
-                data = s.recv(min(8192,fs - rs))
-                rs += len(data)
-                f.write(data)
+                sz = unpack("Q", recv_exactly(s, 8))[0]
+                f.write(recv_exactly(s, sz))
             count.append(name)
         return RECV_FILE_SUCCEED, count, NO_ERROR
     except Exception as e:
-        return RECV_FILE_FAILED, count, str(e)
+        print(str(e))
+        return RECV_FILE_FAILED, count, e
