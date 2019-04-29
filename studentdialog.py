@@ -6,7 +6,7 @@ from xlsxwriter import Workbook as xlsxwb
 
 class StudentDialog(Dialog):
     def __init__(self, app):
-        Dialog.__init__(self, app, -1, "SD", (0, 0), (500, 300), DEFAULT_FRAME_STYLE, "sd")
+        Dialog.__init__(self, app, -1, "学生管理", (0, 0), (500, 300), DEFAULT_FRAME_STYLE, "sd")
         self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(BOTH)
         self.P, self.B = Panel(self), BoxSizer(HORIZONTAL)
         self.PR, self.BR = Panel(self.P), BoxSizer(VERTICAL)
@@ -42,7 +42,7 @@ class StudentDialog(Dialog):
     def add(self, nos):
         connection = connect(self.GetParent().database)
         for no in nos:
-            obj = Model(no, select_one(connection, "user", ["name"], ["no"], [no])[0])
+            obj = Model(no, select_one(connection, "user", ["name"], ["no"], [no])[0], path=self.GetParent().work_dir)
             if no in self.SD:
                 self.OLV.RefreshObject(obj)
             else:
@@ -52,7 +52,7 @@ class StudentDialog(Dialog):
 
     def delete(self, nos):
         for no in nos:
-            self.OLV.RemoveObject(Model(no))
+            self.OLV.RemoveObject(Model(no,path=self.GetParent().work_dir))
             self.SD.remove(no)
         self.GetParent().delete(nos)
 
@@ -103,7 +103,7 @@ class StudentDialog(Dialog):
 
 class AddStudent(Dialog):
     def __init__(self, app):
-        Dialog.__init__(self, app, -1, "AD", (0, 0), (400, 70),
+        Dialog.__init__(self, app, -1, "添加学生", (0, 0), (400, 70),
                            DEFAULT_FRAME_STYLE & ~(RESIZE_BORDER | MAXIMIZE_BOX), "ad")
         self.Center(BOTH), self.SetIcon(app.GetParent().GetIcon())
         self.P, self.B = Panel(self), BoxSizer(HORIZONTAL)
@@ -134,7 +134,7 @@ class AddStudent(Dialog):
 
 class AddStudents(Dialog):
     def __init__(self, app, path):
-        Dialog.__init__(self, app, -1, "ADS", (0, 0), (450, 75),
+        Dialog.__init__(self, app, -1, "从Excel表添加学生", (0, 0), (450, 75),
                            DEFAULT_FRAME_STYLE & ~(RESIZE_BORDER | MAXIMIZE_BOX), "ads")
         self.Center(BOTH), self.SetIcon(app.GetParent().GetIcon())
         self.P, self.B = Panel(self), BoxSizer(HORIZONTAL)

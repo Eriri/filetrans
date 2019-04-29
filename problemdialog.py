@@ -3,7 +3,7 @@ from serverbase import *
 
 class ProblemDialog(Dialog):
     def __init__(self, app):
-        Dialog.__init__(self, app, -1, "PD", (0, 0), (500, 300), DEFAULT_FRAME_STYLE, "problem")
+        Dialog.__init__(self, app, -1, "题目管理", (0, 0), (500, 300), DEFAULT_FRAME_STYLE, "problem")
         self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(BOTH)
         self.P = Panel(self)
         self.PL, self.PR = Panel(self.P), Panel(self.P)
@@ -85,7 +85,7 @@ class ProblemDialog(Dialog):
 
 class EditProblem(Dialog):
     def __init__(self, app):
-        Dialog.__init__(self, app, -1, "EP", (0, 0), (550, 120),
+        Dialog.__init__(self, app, -1, "编辑题目", (0, 0), (550, 120),
                            DEFAULT_FRAME_STYLE & ~(RESIZE_BORDER | MAXIMIZE_BOX), "ep")
         self.Center(BOTH), self.SetIcon(app.GetParent().GetIcon())
 
@@ -172,7 +172,7 @@ class EditProblem(Dialog):
 
 class EditTest(Dialog):
     def __init__(self, app, belong):
-        Dialog.__init__(self, app, -1, "ET", (0, 0), (700, 70),
+        Dialog.__init__(self, app, -1, "编辑测试点", (0, 0), (700, 70),
                            DEFAULT_FRAME_STYLE & ~(RESIZE_BORDER | MAXIMIZE_BOX), "et")
         self.belong = belong
         self.Center(BOTH), self.SetIcon(self.GetParent().GetParent().GetIcon())

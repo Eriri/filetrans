@@ -25,8 +25,8 @@ def delete(connection, table, areas, values):
 
 
 def update(connection, table, areas, values, careas, cvalues):
-    attributes = ",".join([str(a) + "='"+str(v)+"'" for a, v in zip(areas, values)])
-    conditions = " where "+" and ".join([str(a)+"="+("NULL" if v=="NULL" else "'"+str(v)+"'") for a,v in zip(careas,cvalues)])
+    attributes = ",".join([str(a) + "=" + ["'"+str(v)+"'","NULL"][str(v)=="NULL"] for a, v in zip(areas, values)])
+    conditions = " where "+" and ".join([str(a)+"="+"'"+str(v)+"'" for a,v in zip(careas,cvalues)])
     connection.execute("update "+table+" set "+attributes+conditions)
 
 

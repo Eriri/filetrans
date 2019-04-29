@@ -171,13 +171,16 @@ class MainFrame(Frame):
         self.OLV.RefreshObjects(obj)
 
     def update(self, nos):
-        pass
+        connection = connect(self.database)
+        for no in nos:
+            name, ip, point = select_one(connection, "user", ["name", "ip", "point"], ["no"], [no])
+            self.OLV.RefreshObject(Model(no, name, self.prob, ip, point, self.work_dir, self.lang))
 
     def add(self, nos):
         connection = connect(self.database)
         for no in nos:
             name, ip, point = select_one(connection, "user", ["name", "ip", "point"], ["no"], [no])
-            obj = Model(no, name, self.prob, ip, point, self.work_dir)
+            obj = Model(no, name, self.prob, ip, point, self.work_dir, self.lang)
             if no in self.SD:
                 self.OLV.RefreshObject(obj)
             else:
@@ -187,7 +190,7 @@ class MainFrame(Frame):
 
     def delete(self, nos):
         for no in nos:
-            self.OLV.RemoveObject(Model(no))
+            self.OLV.RemoveObject(Model(no, path=self.work_dir))
             self.SD.remove(no)
 
     def button_func(self, event):
@@ -213,7 +216,7 @@ class MainApp(App):
         self.SetTopWindow(self.frame)
 
     def OnInit(self):
-        self._check = SingleInstanceChecker(GetUserId())
+        self._check = SingleInstanceChecker("Server"+GetUserId())
         if self._check.IsAnotherRunning():
             MessageBox("已经运行")
             return False

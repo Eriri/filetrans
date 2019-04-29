@@ -3,7 +3,7 @@ from serverbase import *
 
 class WorkDialog(Dialog):
     def __init__(self, app):
-        Dialog.__init__(self, app, -1, "WD", (0, 0), (500, 300), DEFAULT_FRAME_STYLE, "work")
+        Dialog.__init__(self, app, -1, "接收作业", (0, 0), (500, 300), DEFAULT_FRAME_STYLE, "work")
         self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(BOTH)
 
         self.B, self.PR, self.BR = BoxSizer(HORIZONTAL), Panel(self), BoxSizer(VERTICAL)
@@ -51,6 +51,7 @@ class WorkDialog(Dialog):
             self.C.Enable(), self.CS.Enable()
 
     def collect(self, event):
-        self.C.Disable(), self.CS.Disable()
-        collect_works(self.GetParent(), self, event.GetId())
+        if [self.OLV.GetItemCount(), len(self.OLV.GetCheckedObjects())][event.GetId()] != 0:
+            self.C.Disable(), self.CS.Disable()
+            collect_works(self.GetParent(), self, event.GetId())
 

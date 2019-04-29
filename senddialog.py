@@ -3,7 +3,7 @@ from serverbase import *
 
 class SendDialog(Dialog):
     def __init__(self, app):
-        Dialog.__init__(self, app, -1, "SD", (0, 0), (550, 350), DEFAULT_FRAME_STYLE, "sd")
+        Dialog.__init__(self, app, -1, "发送文件", (0, 0), (550, 350), DEFAULT_FRAME_STYLE, "sd")
         self.SetIcon(app.GetIcon()), self.SetMinSize((500, 300)), self.Center(BOTH)
         self.PL, self.PR = Panel(self), Panel(self)
         self.B, self.BL, self.BR = BoxSizer(HORIZONTAL), BoxSizer(VERTICAL), BoxSizer(VERTICAL)
@@ -65,6 +65,7 @@ class SendDialog(Dialog):
         elif event.GetId() == 1:
             self.F.RemoveObjects(self.F.GetCheckedObjects())
         else:
-            for b in self.Bt:
-                b.Disable()
-            send_files(self.GetParent(), self, event.GetId())
+            if [self.U.GetItemCount(), len(self.U.GetCheckedObjects())][event.GetId() - 2] != 0:
+                for b in self.Bt:
+                    b.Disable()
+                send_files(self.GetParent(), self, event.GetId())
