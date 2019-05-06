@@ -1,6 +1,5 @@
 from serverbase import *
 
-
 class MyTaskBarIcon(TaskBarIcon):
     def __init__(self, app):
         TaskBarIcon.__init__(self)

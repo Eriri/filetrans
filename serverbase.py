@@ -32,7 +32,6 @@ def run_server_tcp(app):
                     connection.commit(), connection.close(), app.update([packet["no"]])
                     quick_send(self.request, [CLIENT_VERITY_SUCCEED])
 
-
     try:
         server = ThreadingTCPServer(('', app.server_tcp_port), Handler)
         p = Process(target=server.serve_forever)
