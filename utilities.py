@@ -1,5 +1,6 @@
 import os
 import sys
+import base64
 from wx import EVT_BUTTON, EVT_MENU, EVT_COMBOBOX, EVT_CLOSE, EVT_ICONIZE
 from wx import HORIZONTAL, VERTICAL, EXPAND, ALL, BOTH, GA_VERTICAL
 from wx import ID_OK, ID_YES, YES_NO, ICON_QUESTION, ID_ABORT
@@ -61,6 +62,7 @@ DEFAULT_FTP_PORT = 2121
 PROJECT_STATUS_ON = "PROJECT_STATUS_ON"
 PROJECT_STATUS_OFF = "PROJECT_STATUS_OFF"
 DEFAULT_LOCAL_ADDRESS = "127.0.0.1"
+DEFAULT_LOG_INFO = "_"
 
 
 def has(path, x, lang):
@@ -74,7 +76,7 @@ class Model(object):
     def __init__(self, no, name=None, prob=None, ip=None, point=None, path=None, lang=None):
         self.no = no
         self.name = name
-        self.prob = " ".join([x+["☐", "☑"][has(os.path.join(path,no), x, lang)] for x in prob]) if prob is not None else ""
+        self.prob = " ".join([x+["☐", "☑"][has(os.path.join(path, no), x, lang)] for x in prob]) if prob is not None else ""
         self.ip = ip
         self.point = point
         self.path = os.path.join(path, no)

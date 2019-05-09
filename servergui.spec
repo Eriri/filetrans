@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['servergui.py'],
-             pathex=['C:\\Z\\filetrans'],
+             pathex=['E:\\filetrans'],
              binaries=[],
              datas=[],
              hiddenimports=[],
@@ -16,7 +16,7 @@ a = Analysis(['servergui.py'],
              cipher=block_cipher,
              noarchive=False)
 
-a.datas += (('favicon.ico','C:\\Z\\filetrans\\favicon.ico','DATA'),)
+a.datas += (('favicon.ico','E:\\filetrans\\favicon.ico','DATA'),)
 
 pyz = PYZ(a.pure, a.zipped_data,
              cipher=block_cipher)
@@ -25,7 +25,7 @@ exe = EXE(pyz,
           a.binaries,
           a.zipfiles,
           a.datas,
-          [('favicon.ico','C:\\Z\\filetrans\\favicon.ico','DATA')],
+          [('favicon.ico','E:\\filetrans\\favicon.ico','DATA')],
           name='servergui',
           debug=False,
           bootloader_ignore_signals=False,

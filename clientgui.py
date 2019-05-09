@@ -1,5 +1,6 @@
 from serverbase import *
 
+
 class MyTaskBarIcon(TaskBarIcon):
     def __init__(self, app):
         TaskBarIcon.__init__(self)
@@ -80,13 +81,20 @@ class MainFrame(Frame):
         if not os.path.isdir(self.PATH_T.GetValue()) or self.NO_T.GetValue() == "" or self.PATH_T.GetValue() == "":
             MessageBox("请输入正确登录信息与文件夹")
         else:
-            self.no, self.name, self.path = self.NO_T.GetValue(), self.NAME_T.GetValue(), self.PATH_T.GetValue()
-            info = verity_user(self)
+            self.no, self.name, self.path, info = self.NO_T.GetValue(), self.NAME_T.GetValue(), self.PATH_T.GetValue(), None
+            if os.path.isfile(os.path.join(self.path, DEFAULT_LOG_INFO)):
+                with open(os.path.join(self.path, DEFAULT_LOG_INFO), "rb") as f:
+                    if f.read() == base64.b64encode((self.no+self.name).encode()):
+                        info = CLIENT_VERITY_SUCCEED
+            if info is None:
+                info = verity_user(self)
             if info == CLIENT_VERITY_SUCCEED:
                 self.status, self.tcp_server = PROJECT_STATUS_ON, run_client_tcp(self)
                 self.PAL.Show(True), self.FE.Show(True), self.PL.Show(False), self.PR.Show(False)
                 self.B.Clear(), self.B.Add(self.PAL, 1, EXPAND | ALL, 5), self.B.Add(self.FE, 1, EXPAND | ALL, 5)
                 self.SetSize(500, 300)
+                with open(os.path.join(self.path, DEFAULT_LOG_INFO), "wb") as f:
+                    f.write(base64.b64encode((self.no+self.name).encode()))
             elif info == CLIENT_VERITY_FAILED:
                 MessageBox("登录信息错误")
             elif info == CLIENT_SEARCH_SERVER:
@@ -95,6 +103,7 @@ class MainFrame(Frame):
     def close(self, message=None):
         if message is not None:
             MessageBox(message)
+            os.remove(os.path.join(self.path, DEFAULT_LOG_INFO))
         if self.tcp_server is not None:
             self.tcp_server.shutdown(), self.tcp_server.server_close()
         self.status, self.tcp_server = PROJECT_STATUS_OFF, None
